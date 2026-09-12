@@ -22,7 +22,7 @@ import Foundation
 /// as false when it was half true. Every absent capability now carries a reason,
 /// and a test fails if one does not.
 public enum Walk {
-    public static let version = "0.4.0"
+    public static let version = "0.4.1"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is

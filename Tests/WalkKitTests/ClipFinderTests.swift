@@ -129,3 +129,19 @@ private func touch(_ url: URL) throws {
     // The default for a single clip is the exact path; triage is opt-in.
     #expect(ClipScan.Options().yPlaneStride == 1)
 }
+
+// MARK: - the folder walk's own honest-empty shapes
+
+@Test func aFolderResultDistinguishesNothingToScanFromNothingFound() {
+    // TWO DIFFERENT ANSWERS, and conflating them is how "we found nothing"
+    // comes to mean "we did not look". ClipScan.FolderResult.verdict must say
+    // which, and #507 turned on exactly this distinction: GX010035 was scanned
+    // and returned nothing, which is not the same as a folder with no clips in
+    // it.
+    let nothingToScan = ClipScan.FolderResult(
+        inputs: [], found: ClipFinder.find([URL]()), clips: [], failures: [])
+    #expect(nothingToScan.verdict.contains("nothing given was a video file"))
+    #expect(nothingToScan.totalCandidates == 0)
+    #expect(nothingToScan.clipsWithNothing.isEmpty,
+            "no clip was scanned, so no clip can have found nothing")
+}

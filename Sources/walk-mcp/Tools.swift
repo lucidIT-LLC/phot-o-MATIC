@@ -123,7 +123,8 @@ private struct ScanArgs {
     /// saw a single frame. Paths are always returned; bytes are rationed.
     static let inlineImageCeiling = 6
 
-    static func parse(_ a: JSON, defaultStride: Int) throws -> ScanArgs {
+    static func parse(_ a: JSON, defaultStride: Int,
+                      defaultMaxCandidates: Int = 200) throws -> ScanArgs {
         var s = ScanArgs()
         var o = ClipScan.Options.triage()
         o.yPlaneStride = a["y_plane_stride"]?.intValue ?? defaultStride
@@ -165,7 +166,7 @@ private struct ScanArgs {
         }
         s.options = o
         s.inlineImages = min(a["inline_images"]?.intValue ?? 0, inlineImageCeiling)
-        s.maxCandidates = max(1, a["max_candidates"]?.intValue ?? 200)
+        s.maxCandidates = max(1, a["max_candidates"]?.intValue ?? defaultMaxCandidates)
         return s
     }
 }
@@ -191,7 +192,7 @@ private let scanProperties: [String: JSON] = [
     "thumbnail_dir": str("Where to write the PNGs. Defaults to a Walk folder under the user's Caches directory — a cache and not a temp directory, so the path is still valid when it is read back."),
     "thumbnail_width": num("Longest edge of the written PNG, in pixels.", default: 640),
     "inline_images": int("How many candidate frames to ALSO return as inline image content, highest lightning confidence first. Capped at 6. Zero by default: a 640px PNG is a few hundred KB and one clip can produce dozens of candidates, so paths are returned always and bytes only on request.", default: 0),
-    "max_candidates": int("Ceiling on how many candidate rows come back. The counts and the verdict always reflect every candidate found, even when the rows are trimmed.", default: 200),
+    "max_candidates": int("Ceiling on how many candidate rows come back PER CLIP — 200 for walk_scan, 10 for walk_scan_folder, because a full folder walk of 235 candidates serializes to about 200 KB. When it trims, it keeps the highest lightning confidence first and then the largest luminance rise, and says so in candidatesSelectedBy. The counts, the verdict and the thresholds always reflect every candidate found."),
 ]
 
 // MARK: - JSON for WalkKit's types
@@ -265,9 +266,41 @@ private func candidateJSON(_ c: ClipScan.Candidate, exactY: Bool) -> JSON {
     return .object(o)
 }
 
+/// The candidates to return when there are more than the caller wants.
+///
+/// RANK, NOT FRAME ORDER, AND THE MEASUREMENT IS THE REASON. A full walk of the
+/// operator's own GoPro folder — 8 clips, 235 candidates — serializes to
+/// 201,889 bytes, roughly 50k tokens for one tool result. Trimming is therefore
+/// not a corner case for this tool, it is the normal path, and `prefix()` would
+/// hand back whichever candidates happen to sit earliest in the clip. On that
+/// footage the highest `lightning` confidence anywhere is 0.0010 and on the
+/// storm clip it is 0.6616, so the confidence is exactly the axis that
+/// distinguishes them — throwing it away to keep frame order would discard the
+/// only signal that makes a trimmed list readable.
+///
+/// Counts and the verdict always reflect EVERY candidate found, and the result
+/// says both how it selected and that it trimmed.
+private func selectCandidates(_ all: [ClipScan.Candidate], limit: Int)
+    -> (rows: [ClipScan.Candidate], selectedBy: String) {
+    guard all.count > limit else { return (all, "all") }
+    let classified = all.contains { $0.confidences != nil }
+    let ranked = all.sorted { a, b in
+        if classified {
+            let x = a.confidence("lightning") ?? -1, y = b.confidence("lightning") ?? -1
+            if x != y { return x > y }
+        }
+        return a.relativeRise > b.relativeRise
+    }
+    // Back into frame order once chosen, so a reader can still follow the clip.
+    let rows = ranked.prefix(limit).sorted { $0.frame < $1.frame }
+    return (Array(rows),
+            classified ? "highest lightning confidence, then largest luminance rise"
+                       : "largest luminance rise (classification was off)")
+}
+
 private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int) -> JSON {
     let exactY = r.yPlaneStride == 1
-    let shown = r.candidates.prefix(maxCandidates)
+    let (shown, selectedBy) = selectCandidates(r.candidates, limit: maxCandidates)
     return .object([
         "video": infoJSON(r.info),
         "scan": .object([
@@ -287,6 +320,7 @@ private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int) -> JSON {
         "candidateCount": .int(r.candidates.count),
         "candidatesReturned": .int(shown.count),
         "candidatesTrimmed": .bool(shown.count < r.candidates.count),
+        "candidatesSelectedBy": .string(selectedBy),
         "candidates": .array(shown.map { candidateJSON($0, exactY: exactY) }),
     ])
 }
@@ -400,7 +434,16 @@ enum Tools {
             }
             guard !inputs.isEmpty else { return .failure("walk_scan_folder needs path or paths") }
             do {
-                let args = try ScanArgs.parse(a, defaultStride: 4)
+                // TEN PER CLIP BY DEFAULT, AND THAT IS A MEASURED NUMBER.
+                // A full walk of the operator's GoPro folder returns 235
+                // candidates across 8 clips and serializes to 201,889 bytes —
+                // about 50k tokens for one tool result, on the tool whose whole
+                // job is "go walk this folder". The counts, the verdict and the
+                // per-clip thresholds are unaffected by trimming; only the rows
+                // are, and they are chosen by rank. Raise it with
+                // max_candidates when a clip is worth reading in full, or call
+                // walk_scan on that one clip.
+                let args = try ScanArgs.parse(a, defaultStride: 4, defaultMaxCandidates: 10)
                 var find = ClipFinder.Options()
                 find.recursive = a["recursive"]?.boolValue ?? false
                 if let cap = a["max_clips"]?.intValue {

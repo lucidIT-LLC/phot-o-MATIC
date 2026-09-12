@@ -117,6 +117,14 @@ affordable. `walk_scan_folder` defaults to 4, and every result says
 `vision` is off, confidences come back as `null` and never as `0`: a frame that
 was not looked at is not a frame that scored nothing.
 
+**Rows are rationed; counts never are.** `walk_scan_folder` returns 10 candidate
+rows per clip by default (`walk_scan` returns 200), because a full walk of 235
+candidates serializes to about 200 KB — roughly 50k tokens for one tool result.
+When it trims it keeps the highest `lightning` confidence first, then the largest
+luminance rise, sorts them back into frame order, and reports which in
+`candidatesSelectedBy`. `candidateCount`, the verdict and the per-clip thresholds
+always describe every candidate found.
+
 ```
 $ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"walk_scan_folder",
   "arguments":{"path":"/Volumes/NVMeExt1/Content/Photography/100GOPRO","max_clips":8}}}' \
@@ -197,7 +205,7 @@ against known material instead of asserted to work.
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 50 tests
+make test                     # 51 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)

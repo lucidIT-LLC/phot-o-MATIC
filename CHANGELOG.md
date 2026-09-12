@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.4.1 — 2026-09-12
+
+**The front door's headline gesture returned 50k tokens of JSON.** Measured
+immediately after 0.4.0 was tagged, by serializing what a real call actually
+hands back rather than by looking at the code.
+
+A full walk of the operator's own GoPro folder — the exact gesture #507 is
+about, `walk_scan_folder` over 8 clips — produced **201,889 bytes**, roughly
+**50,000 tokens for one tool result**. The default per-clip candidate ceiling
+was 200 and the folder holds 235 candidates across 8 clips, so nothing trimmed.
+
+That is not a correctness defect; every number was right. It is worse in a
+particular way: the tool whose whole purpose is *"go walk this folder while I'm
+talking to the coach"* would spend a quarter of the conversation's context on
+its first use, on rows nobody asked to read.
+
+**Fixed by rationing rows, never counts.**
+
+- `walk_scan_folder` defaults to **10 candidate rows per clip**. `walk_scan`
+  keeps 200 — one clip is where reading everything is affordable.
+- **Trimming is by RANK, not by frame order.** `prefix()` would have kept
+  whichever candidates sit earliest in the clip. Across those 235 non-storm
+  candidates the highest `lightning` confidence is **0.0010** and on the storm
+  clip it is **0.6616**, so the confidence is precisely the axis that separates
+  them — discarding it to preserve frame order would throw away the only signal
+  that makes a short list readable. Rows are selected by lightning confidence,
+  then by luminance rise, then sorted back into frame order so a reader can
+  still follow the clip.
+- When classification is off it ranks by luminance rise and **says so**, in
+  `candidatesSelectedBy`. `candidateCount`, `candidatesReturned`,
+  `candidatesTrimmed`, the verdict, the thresholds and the per-clip diagnostics
+  always describe **every** candidate found.
+
+MEASURED after, same folder, same 42,728 frames:
+
+```
+payload        201,889 -> 54,665 bytes   (-73%)
+candidates     235 found, 51 rows returned, counts unchanged
+GX010042       count 100  returned 10  trimmed  by: highest lightning confidence
+GX010040       count  15  returned 10  trimmed  by: highest lightning confidence
+GX010035       count   0  returned  0  NOTHING FOUND
+GX010041       count   0  returned  0  NOTHING FOUND
+```
+
+The single highest-confidence row returned anywhere in the trimmed result is
+GX010040 frame 413 at 0.0010 — the highest-confidence candidate in the entire
+non-storm set. The ranking kept the right frames.
+
+### Changed
+
+- `walk_scan_folder` default `max_candidates`: 200 → 10 per clip.
+- New field `candidatesSelectedBy` on every clip result.
+- 51 tests: one more asserting that `FolderResult` distinguishes *nothing to
+  scan* from *nothing found*. Conflating those is how "we found nothing" comes
+  to mean "we did not look".
+
+### Still true, and still the caveat that matters more than the result
+
+54,665 bytes is about 13.7k tokens for 8 clips of 4K footage. Better, not
+small. The candidate rows still dominate it, and the reason a folder walk is
+expensive at all is unchanged: **the detector finds one kind of event**, so 235
+brightness changes come back where a sort of interesting moments was wanted.
+Trimming by lightning confidence makes a single-event detector's output
+readable; it does not make it a sort. #498's distance is unchanged.
+
+---
+
 ## 0.4.0 — 2026-09-12
 
 **The conversation reaching the engine.** A third executable target, `walk-mcp`,
