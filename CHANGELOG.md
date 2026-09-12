@@ -195,6 +195,35 @@ the CI workflow already comments on at its Build step. Fixed by wiping a
 dedicated scratch path first: **the log only ever says what the compiler was
 asked to compile.**
 
+### A FALSE SHORTFALL, FOUND BY READING BACK A SEGMENT
+
+`walk_segments` on clip 0012 frames 2300–2400 with one-second handles reported:
+
+```
+tail short 0.099 s (asked 1.00, clip offered 0.901)
+```
+
+**The clip did not offer 0.901 s. The clip has ~2771 frames and a full second
+after frame 2388 is entirely available.** The shortfall was the SCAN WINDOW,
+attributed to the clip.
+
+Cause: 0.3.0's CLI clamped the segment builder against the decoded frame count,
+with a comment saying so — *right for a whole clip*, because the container
+estimate can be wrong, and *wrong for a sub-range*, where the decoded count is
+the size of the window and says nothing about the clip's length. The new front
+door inherited it and surfaced it in structured JSON, which is how it was seen.
+
+A shortfall report that misnames its own cause is worse than no report, because
+the entire reason `SegmentBuilder` carries a shortfall is so a short cut can be
+explained. `ClipScan.Result.segmentClamp` now picks the basis from what was
+actually scanned and **says which** — `measured` over a whole clip, `container
+estimate` over a sub-range — and both front doors use it. `walk_segments`
+returns the clamp and its basis alongside the segments.
+
+After: frames 2274–2449, 175 frames, 2.920 s, lead 1.001, tail 1.902,
+**full handles, 0 short**. Two tests pin both halves, and `SegmentsCommand` now
+runs through `ClipScan` so the sequence is not a third copy there either.
+
 ### Also measured through the MCP surface
 
 - **`walk_scan`** on clip 0012 frames 2300–2400, stride 1: frame 2347 reads
@@ -203,9 +232,8 @@ asked to compile.**
   `inline_images: 2` ranked **frames 2388 (0.6616) and 2367 (0.5581)** to the
   top — the two frames #504 recorded Probot confirming visually as real,
   distinct cloud-to-ground strikes.
-- **`walk_segments`** dry run: 9 candidates coalesced to 1 segment, frames
-  2274–2389, 1.919 s, **tail short 0.099 s reported, not clamped**. Written:
-  115 appended, 115 decodable, verified, **3.8333 s at exactly 30.00 fps**,
+- **`walk_segments`** written before the clamp fix above: 115 appended, 115
+  decodable, verified, **3.8333 s at exactly 30.00 fps**,
   hvc1 10-bit `ITU_R_2100_HLG`, 61.5 MB — the integer-rational retime from 0.3.0
   holding through a new front door.
 - **`walk_grade`** on a 36.6 MP still: system gamma 0.780 at 100 nits, dramatic
@@ -230,9 +258,9 @@ asked to compile.**
   `.github/mcp-handshake.sh`.
 - `make mcp`, `make mcp-check`, `make install-mcp`, `make deprecations`,
   `make verify`.
-- **18 tests**, 48 total: `ClipFinderTests` (8), contract reasons and the #507
+- **20 tests**, 50 total: `ClipFinderTests` (8), contract reasons and the #507
   resolution (5), `ClipScan` known-answer parity, thumbnail-is-not-a-measurement,
-  folder-walk over the storm clips.
+  folder-walk over the storm clips, and both halves of the segment clamp.
 
 ### Changed
 

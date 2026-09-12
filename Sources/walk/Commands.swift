@@ -250,20 +250,29 @@ enum SegmentsCommand {
         do {
             let reader = try await VideoReader(url: URL(fileURLWithPath: path))
             ScanCommand.printHeader(reader.info, reader: reader)
-            let series = try await FrameScanner.scan(reader, options: .init(frames: frames))
-            let result = EventDetector().detect(series)
+            // THROUGH ClipScan, so this is not a third copy of the sequence.
+            var opts = ClipScan.Options(frames: frames, computeYPlane: false)
+            opts.classify = false
+            let scanned = try await ClipScan.run(reader.url, options: opts)
             print(String(format: "scan          %d frames in %.3f s = %.1f fps",
-                         series.decodedFrames, series.wallSeconds, series.framesPerSecond))
-            print("result        \(result.verdict)")
-            guard !result.events.isEmpty else {
+                         scanned.decodedFrames, scanned.scanSeconds, scanned.framesPerSecond))
+            print("result        \(scanned.verdict)")
+            guard !scanned.candidates.isEmpty else {
                 print("\nNothing to cut. No segment written.")
                 return
             }
 
-            // Clamp against the DECODED frame count, not the container estimate.
-            let builder = SegmentBuilder(totalFrames: (series.samples.last?.index ?? 0) + 1,
+            // THE CLAMP, AND WHERE IT CAME FROM. 0.3.0 clamped against the
+            // decoded frame count here. That is right for a whole clip and wrong
+            // for a --frames window, where the decoded count is the size of the
+            // window: it reported "tail short 0.099 s (clip offered 0.901)" on a
+            // clip with 2771 frames and a full second available. See
+            // ClipScan.Result.segmentClamp.
+            let clamp = scanned.segmentClamp
+            print("clamp         \(clamp.totalFrames) frames — \(clamp.basis)")
+            let builder = SegmentBuilder(totalFrames: clamp.totalFrames,
                                          frameDuration: reader.info.frameDuration)
-            let segments = builder.segments(forEventFrames: result.events.map(\.index),
+            let segments = builder.segments(forEventFrames: scanned.candidates.map(\.frame),
                                             leadSeconds: lead, tailSeconds: tail)
             print(String(format: "\nsegments      %d (handles requested: %.2f s lead, %.2f s tail)", segments.count, lead, tail))
             print("  #   event   frames            count   seconds   lead      tail      handles")

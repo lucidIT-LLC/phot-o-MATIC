@@ -93,6 +93,10 @@ public struct ClipScan: Sendable {
     public struct Result: Sendable {
         public let url: URL
         public let info: VideoInfo
+        /// The frame range the caller asked for, `nil` when the whole clip was
+        /// scanned. Carried because it changes what `decodedFrames` MEANS, and
+        /// the difference was measurable — see `segmentClamp`.
+        public let requestedFrames: Range<Int>?
         public let decodedFrames: Int
         public let scanSeconds: Double
         public let framesPerSecond: Double
@@ -106,6 +110,41 @@ public struct ClipScan: Sendable {
         public var foundNothing: Bool { candidates.isEmpty }
         /// True in both directions — see `EventDetector.Result.verdict`.
         public var verdict: String { detection.verdict }
+
+        /// How many frames a segment builder may clamp against, and whether
+        /// that figure was MEASURED or read off the container.
+        ///
+        /// THIS EXISTS BECAUSE THE OBVIOUS ANSWER PRODUCED A FALSE SHORTFALL,
+        /// caught by reading back a real segment rather than by reasoning.
+        ///
+        /// 0.3.0's CLI clamped against the decoded frame count, with a comment
+        /// saying so — correct, and the container estimate can be wrong. But
+        /// when a SUB-RANGE is scanned, the decoded count is the size of the
+        /// WINDOW and says nothing about the clip. MEASURED 2026-09-12: scanning
+        /// clip 0012 frames 2300–2400 and asking for one-second handles reported
+        /// "tail short 0.099 s (asked 1.00, clip offered 0.901)". The clip has
+        /// ~2771 frames; a full second after frame 2388 is entirely available.
+        /// The shortfall was an artefact of the scan window, attributed to the
+        /// clip.
+        ///
+        /// A shortfall report that misnames its own cause is worse than no
+        /// report, because the whole reason `SegmentBuilder` carries a shortfall
+        /// is so that a short cut can be explained. So the basis is chosen by
+        /// what was actually scanned, and it SAYS WHICH.
+        public var segmentClamp: (totalFrames: Int, measured: Bool, basis: String) {
+            let lastDecoded = (candidates.map(\.frame).max() ?? 0) + 1
+            if requestedFrames == nil, decodedFrames > 0 {
+                // Whole clip: the decoded count is a measurement and beats the
+                // container's arithmetic.
+                return (Swift.max(decodedFrames, lastDecoded), true,
+                        "measured — \(decodedFrames) frames decoded over the whole clip")
+            }
+            // Sub-range: the window's size is not the clip's length, so the
+            // container estimate is the only figure available. Named as an
+            // estimate so a shortfall built on it can be read for what it is.
+            return (Swift.max(info.estimatedFrameCount, lastDecoded), false,
+                    "container estimate — only frames \(requestedFrames.map { "\($0.lowerBound)..<\($0.upperBound)" } ?? "?") were decoded, so the decoded count is the window and not the clip")
+        }
     }
 
     /// Scan one clip. `progress` is called with decoded frame indices.
@@ -159,7 +198,8 @@ public struct ClipScan: Sendable {
                 thumbnail: thumb))
         }
 
-        return Result(url: url, info: reader.info, decodedFrames: series.decodedFrames,
+        return Result(url: url, info: reader.info, requestedFrames: options.frames,
+                      decodedFrames: series.decodedFrames,
                       scanSeconds: series.wallSeconds, framesPerSecond: series.framesPerSecond,
                       ciMillisecondsPerFrame: series.ciMillisecondsPerFrame,
                       missingIndices: series.missingIndices,

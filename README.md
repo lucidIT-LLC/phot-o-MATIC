@@ -197,7 +197,7 @@ against known material instead of asserted to work.
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 48 tests
+make test                     # 50 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
@@ -251,6 +251,9 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
   with every success signal returning true.
 - **No audio.** Never read, retimed or written.
 - **The app is not sandboxed.** The trade is stated in `WalkApp.swift`.
+- **A handle shortfall over a partial scan is computed against the container's
+  frame estimate, not a measurement.** Every segment result says which basis it
+  used. Over a whole clip the figure is measured.
 - **The MCP server was verified, but not registered.** The handshake and tool
   registration were measured live against Claude Code 2.1.258 using
   `--strict-mcp-config --mcp-config`, which persists nothing. A *tool call*

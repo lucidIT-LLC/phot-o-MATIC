@@ -259,3 +259,51 @@ func aFolderWalkOverTheStormClipsFindsEachClipSeparately() async throws {
         !ClipFinder.videoExtensions.contains($0.pathExtension.lowercased())
     })
 }
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(5)))
+func aSubRangeScanDoesNotInventAHandleShortfall() async throws {
+    // THE DEFECT THIS TEST PINS. Scanning frames 2300–2400 of clip 0012 and
+    // asking for one-second handles reported "tail short 0.099 s (asked 1.00,
+    // clip offered 0.901)". The clip has ~2771 frames and a full second after
+    // frame 2388 is entirely available — the shortfall was the SCAN WINDOW,
+    // reported as though it were the clip. Found by reading back a written
+    // segment, not by reasoning about the code.
+    var options = ClipScan.Options(frames: 2300..<2400, computeYPlane: false)
+    options.classify = false
+    let scanned = try await ClipScan.run(KnownAnswer.url, options: options)
+
+    let clamp = scanned.segmentClamp
+    #expect(!clamp.measured, "a sub-range scan cannot have measured the clip's length")
+    #expect(clamp.basis.contains("container estimate"))
+    #expect(clamp.totalFrames > 2500,
+            "the clamp must be the clip's length (~2771), not the window's (100); it was \(clamp.totalFrames)")
+
+    let builder = SegmentBuilder(totalFrames: clamp.totalFrames,
+                                 frameDuration: scanned.info.frameDuration)
+    let segments = builder.segments(forEventFrames: scanned.candidates.map(\.frame),
+                                    leadSeconds: 1.0, tailSeconds: 1.0)
+    #expect(!segments.isEmpty)
+    for s in segments {
+        #expect(!s.isShort,
+                "segment at event \(s.eventIndex) reports \(s.shortfallNote) — the clip can supply these handles")
+    }
+}
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(10)))
+func aWholeClipScanClampsAgainstWhatItMeasured() async throws {
+    // The other half, and the reason the original comment was right for its
+    // case: over a whole clip the decoded count is a measurement, and the
+    // container's arithmetic is not.
+    var options = ClipScan.Options.triage()
+    options.classify = false
+    options.thumbnailDirectory = nil
+    let scanned = try await ClipScan.run(KnownAnswer.url, options: options)
+    let clamp = scanned.segmentClamp
+    #expect(clamp.measured)
+    #expect(clamp.basis.contains("measured"))
+    #expect(clamp.totalFrames == max(scanned.decodedFrames,
+                                     (scanned.candidates.map(\.frame).max() ?? 0) + 1))
+    // The container says ~2771; the decode is what counts.
+    #expect(abs(clamp.totalFrames - scanned.info.estimatedFrameCount) < 10,
+            "decoded \(clamp.totalFrames) against an estimate of \(scanned.info.estimatedFrameCount)")
+}

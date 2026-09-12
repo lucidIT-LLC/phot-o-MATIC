@@ -505,12 +505,12 @@ enum Tools {
                     ]))
                 }
 
-                // Clamp against DECODED frames, not the container's estimate.
-                let builder = SegmentBuilder(totalFrames: scanned.decodedFrames > 0
-                                                ? (scanned.candidates.map(\.frame).max() ?? 0) + 1 > scanned.decodedFrames
-                                                    ? (scanned.candidates.map(\.frame).max() ?? 0) + 1
-                                                    : scanned.decodedFrames
-                                                : scanned.info.estimatedFrameCount,
+                // The clamp, and where it came from. See ClipScan.Result.segmentClamp
+                // — clamping against the decoded count is right for a whole
+                // clip and produces a FALSE shortfall for a sub-range, which is
+                // how this was found.
+                let clamp = scanned.segmentClamp
+                let builder = SegmentBuilder(totalFrames: clamp.totalFrames,
                                              frameDuration: scanned.info.frameDuration)
                 let built = builder.segments(forEventFrames: scanned.candidates.map(\.frame),
                                              leadSeconds: lead, tailSeconds: tail)
@@ -577,6 +577,12 @@ enum Tools {
                     "verdict": .string(scanned.verdict),
                     "requested": .object(["leadSeconds": .double(lead), "tailSeconds": .double(tail),
                                           "outputFps": .int(Int(fps))]),
+                    "clamp": .object([
+                        "totalFrames": .int(clamp.totalFrames),
+                        "measured": .bool(clamp.measured),
+                        "basis": .string(clamp.basis),
+                        "note": .string("Handle shortfalls are computed against this. When measured is false only part of the clip was decoded, so a reported shortfall is a limit of the scan window, not of the clip."),
+                    ]),
                     "segmentCount": .int(built.count),
                     "segmentsShortOfHandles": .int(short),
                     "segments": .array(segmentsJSON),
