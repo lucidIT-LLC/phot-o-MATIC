@@ -75,6 +75,19 @@ public struct FrameScanner {
         let t0 = DispatchTime.now().uptimeNanoseconds
 
         while let frame = try await pass.next() {
+            // CANCELLATION IS CHECKED PER FRAME, AND IT WAS NOT BEFORE.
+            //
+            // MEASURED 2026-09-12: a `notifications/cancelled` for a scan of a
+            // 15,367-frame clip was received and registered, the task's flag was
+            // set, and the decoder kept going — because the only
+            // checkCancellation in the path sat in ClipScan's candidate loop,
+            // which runs AFTER the whole scan. Cancellation was acknowledged and
+            // nothing stopped, which is the defect class this library is about:
+            // a success signal with nothing behind it.
+            //
+            // One flag read per frame against ~2.6 ms of decode and Core Image
+            // work is not measurable.
+            try Task.checkCancellation()
             // AUTORELEASEPOOL IS NOT HOUSEKEEPING, IT IS 6x.
             //
             // MEASURED 2026-09-12 on clip 0012, 2771 frames of 4K60, identical

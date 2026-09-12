@@ -52,9 +52,56 @@ non-storm set. The ranking kept the right frames.
 
 - `walk_scan_folder` default `max_candidates`: 200 → 10 per clip.
 - New field `candidatesSelectedBy` on every clip result.
-- 51 tests: one more asserting that `FolderResult` distinguishes *nothing to
-  scan* from *nothing found*. Conflating those is how "we found nothing" comes
-  to mean "we did not look".
+- 52 tests: one asserting that `FolderResult` distinguishes *nothing to
+  scan* from *nothing found* — conflating those is how "we found nothing" comes
+  to mean "we did not look" — and one asserting that a cancelled scan stops
+  rather than finishes.
+
+### AND A CLAIM OF MY OWN THAT DID NOT SURVIVE ITS OWN READBACK
+
+0.4.0's changelog and commit message both said:
+
+> `notifications/cancelled` actually cancels — `Running` holds the in-flight
+> tasks — because acknowledging a cancellation and continuing to decode is a
+> success signal with nothing behind it.
+
+**Measured: it did not cancel.** The notification arrived, `Running` found the
+task, `Task.cancel()` set the flag — and the decoder ran to the end of a
+15,367-frame clip anyway, because the only `checkCancellation()` in the path sat
+in `ClipScan`'s candidate loop, which runs *after* the scan. Acknowledged, and
+nothing stopped. The sentence describing the control was the control's only
+evidence, which is the defect this repository is named for.
+
+Found by driving the live server with a reader thread running from t=0 and
+timestamping receipt, rather than by reading the code.
+
+Two fixes:
+
+- **`FrameScanner` checks cancellation per frame.** One flag read against ~2.6 ms
+  of decode and Core Image work per frame is not measurable.
+- **A cancelled request gets NO reply.** The stdio binding says a server "MUST
+  NOT send any further messages for it", and the previous code would have
+  answered with `isError: true` — a response the client has no request left to
+  correlate. `Running.run` returns `nil` for a cancelled task and the dispatcher
+  sends nothing. The app treats `CancellationError` as a clean stop rather than
+  a failure to report.
+
+MEASURED after, on the live server over stdio:
+
+```
+0.21s  initialize -> replied            (legacy, agreed 2025-11-25)
+3.00s  ping sent at 3.00s -> replied    DURING the scan
+4.01s  walk_contract sent at 4.00s -> replied   DURING the scan
+6.01s  notifications/cancelled received
+6.04s  work stopped, no reply sent
+```
+
+**Concurrency is therefore measured and not asserted:** a `ping` and a
+`walk_contract` both answered within 10 ms of being sent while a 15,367-frame
+4K scan was in flight. And cancellation stops the work in **30 ms**, where
+before it ran to completion. A test pins both the `CancellationError` and the
+elapsed time, because a cancellation that is merely *reported* is the thing that
+was wrong.
 
 ### And one more control, because the README is what a consumer reads first
 
@@ -354,10 +401,9 @@ runs through `ClipScan` so the sequence is not a third copy there either.
 - Concurrency: each MCP message is handled on its own task, writes serialized by
   a `Wire` actor. A folder scan is minutes of work; a host that could not get a
   `ping` answered or a `notifications/cancelled` delivered during one has no way
-  to tell a long scan from a hung process. `notifications/cancelled` actually
-  cancels — `Running` holds the in-flight tasks — because acknowledging a
-  cancellation and continuing to decode is a success signal with nothing behind
-  it.
+  to tell a long scan from a hung process.
+  **This release ALSO claimed that `notifications/cancelled` actually cancels.
+  Measured, it did not — see 0.4.1.**
 
 ### Not in scope, and deliberately untouched
 

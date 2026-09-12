@@ -307,3 +307,42 @@ func aWholeClipScanClampsAgainstWhatItMeasured() async throws {
     #expect(abs(clamp.totalFrames - scanned.info.estimatedFrameCount) < 10,
             "decoded \(clamp.totalFrames) against an estimate of \(scanned.info.estimatedFrameCount)")
 }
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(2)))
+func aCancelledScanStopsDecodingRatherThanFinishing() async throws {
+    // THE CLAIM THIS TEST EXISTS TO KEEP HONEST. 0.4.1's own commit message
+    // said "notifications/cancelled actually cancels". MEASURED, it did not:
+    // the cancellation was received and registered, the task flag was set, and
+    // the decoder ran to the end of a 15,367-frame clip, because the only
+    // checkCancellation in the path sat in ClipScan's candidate loop — after
+    // the scan. Acknowledged and nothing stopped.
+    //
+    // FrameScanner now checks per frame. After the fix, work stopped 30 ms
+    // after the cancellation arrived.
+    let task = Task { () -> Int in
+        var options = ClipScan.Options.triage()
+        options.classify = false
+        options.thumbnailDirectory = nil
+        let r = try await ClipScan.run(KnownAnswer.url, options: options)
+        return r.decodedFrames
+    }
+    // Long enough that the scan is genuinely running, far short of the ~30 s a
+    // whole-clip scan of this material takes.
+    try await Task.sleep(for: .milliseconds(600))
+    let started = ContinuousClock.now
+    task.cancel()
+    let outcome = await task.result
+    let elapsed = ContinuousClock.now - started
+
+    switch outcome {
+    case .success(let frames):
+        Issue.record("the scan ran to completion after being cancelled — \(frames) frames decoded")
+    case .failure(let error):
+        #expect(error is CancellationError,
+                "a cancelled scan must fail with CancellationError, not \(error)")
+    }
+    // The point is that it STOPS, not merely that it reports. A whole-clip scan
+    // of this material is about 30 s; anything under a second is a real stop.
+    #expect(elapsed < .seconds(2),
+            "took \(elapsed) to stop after cancel — cancellation is being noticed too late to matter")
+}

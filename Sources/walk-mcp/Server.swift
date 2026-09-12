@@ -142,8 +142,15 @@ struct Server {
         }
 
         do {
-            let result = try await dispatch(method: method, params: params, id: id)
-            await reply(id: id, result: result)
+            // nil means SEND NOTHING. The only case is a cancelled request: the
+            // stdio binding says a server "MUST NOT send any further messages
+            // for it", so a cancelled tool call is silent rather than answered
+            // with an error the client has no request left to match it to.
+            if let result = try await dispatch(method: method, params: params, id: id) {
+                await reply(id: id, result: result)
+            } else {
+                wire.verbose("no reply sent for cancelled request \(id)")
+            }
         } catch let e as RPCError {
             await reply(id: id, error: e)
         } catch {
@@ -165,7 +172,7 @@ struct Server {
         }
     }
 
-    private func dispatch(method: String, params: JSON, id: JSON) async throws -> JSON {
+    private func dispatch(method: String, params: JSON, id: JSON) async throws -> JSON? {
         switch method {
 
         // MARK: modern
@@ -252,13 +259,16 @@ actor Running {
         }
     }
 
-    func run(id: JSON, _ body: @escaping @Sendable () async -> JSON) async -> JSON {
+    /// Returns `nil` when the request was cancelled, so the caller sends
+    /// nothing at all. A cancelled request has no client-side entry left to
+    /// correlate a reply against, and the binding forbids one.
+    func run(id: JSON, _ body: @escaping @Sendable () async -> JSON) async -> JSON? {
         let k = key(id)
         let task = Task<JSON, Never> { await body() }
         tasks[k] = task
         let value = await task.value
         tasks[k] = nil
-        return value
+        return task.isCancelled ? nil : value
     }
 
     func cancel(_ id: JSON) {

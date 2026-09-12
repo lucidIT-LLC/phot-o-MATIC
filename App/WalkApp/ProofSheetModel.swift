@@ -121,6 +121,13 @@ final class ProofSheetModel {
                     if Task.isCancelled { break }
                     self.clips.append(result)
                     if self.selectedClip == nil { self.selectedClip = result.id }
+                } catch is CancellationError {
+                    // FrameScanner checks cancellation per frame as of 0.4.1, so
+                    // a cancel now surfaces here as a thrown CancellationError
+                    // rather than as a loop that finishes anyway. Stopping is
+                    // what the operator asked for; reporting it as a failure
+                    // would be wrong.
+                    break
                 } catch {
                     self.state = .failed("\(file.lastPathComponent): \(error)")
                     return

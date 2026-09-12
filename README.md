@@ -205,7 +205,7 @@ against known material instead of asserted to work.
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 51 tests
+make test                     # 52 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
