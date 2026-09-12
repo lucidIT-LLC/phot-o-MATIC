@@ -15,10 +15,20 @@ let package = Package(
     products: [
         .library(name: "WalkKit", targets: ["WalkKit"]),
         .executable(name: "walk", targets: ["walk"]),
+        // 0.4.0: the third front door. One library, three ways in — the CLI,
+        // the app, and now an MCP server, which decision #507 makes the primary
+        // one: the product is the conversation reaching this machine.
+        .executable(name: "walk-mcp", targets: ["walk-mcp"]),
     ],
     targets: [
         .target(name: "WalkKit"),
         .executableTarget(name: "walk", dependencies: ["WalkKit"]),
+        // NO DEPENDENCIES, DELIBERATELY. MCP over stdio is newline-delimited
+        // JSON-RPC 2.0 and the whole wire layer is JSON.swift plus
+        // Transport.swift. Pulling in an SDK would add a second version contract
+        // to keep in step with this one — and §8.5 exists because keeping two
+        // things in step by hand is what fails here.
+        .executableTarget(name: "walk-mcp", dependencies: ["WalkKit"]),
         .testTarget(name: "WalkKitTests", dependencies: ["WalkKit"]),
     ]
 )

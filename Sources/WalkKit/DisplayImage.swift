@@ -3,6 +3,8 @@ import CoreImage
 import CoreGraphics
 import CoreVideo
 import Metal
+import ImageIO
+import UniformTypeIdentifiers
 
 extension HLGGrade {
     /// Tone map only — no inverse OETF, no OOTF.
@@ -75,5 +77,41 @@ extension Frame {
         return context.createCGImage(image, from: image.extent,
                                      format: .RGBA8,
                                      colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    }
+}
+
+extension Frame {
+    /// Write this frame as a tone-mapped sRGB PNG and return where it landed.
+    ///
+    /// WHY A FILE AND NOT BYTES, decided deliberately in 0.4.0 rather than
+    /// defaulted into. The MCP front door hands its results to a language model,
+    /// and a model's context is the scarcest thing in the system. MEASURED on
+    /// this material: a 560-pixel-wide display PNG off a 4K frame is on the
+    /// order of 300 KB, which is ~400 KB once base64-encoded, and #507 records
+    /// one GoPro clip producing 38 candidates. Returning every candidate inline
+    /// would be roughly 15 MB of images for one clip — the conversation would
+    /// die before the operator saw anything.
+    ///
+    /// So candidates come back as PATHS, always, and the host reads the two or
+    /// three worth looking at. `walk_scan` can also inline a small, capped
+    /// number on request, which is the case where a picture is the answer.
+    ///
+    /// This is a PICTURE FOR LOOKING AT. No number in Walk is derived from it.
+    public func writeDisplayPNG(to url: URL, maxWidth: CGFloat = 640,
+                                exposure: Float = 1.0) throws -> URL {
+        guard let cg = makeDisplayImage(maxWidth: maxWidth, exposure: exposure) else {
+            throw WalkVideoError.pixelBufferAllocationFailed
+        }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        guard let dest = CGImageDestinationCreateWithURL(
+            url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+            throw WalkVideoError.thumbnailWriteFailed(url)
+        }
+        CGImageDestinationAddImage(dest, cg, nil)
+        guard CGImageDestinationFinalize(dest) else {
+            throw WalkVideoError.thumbnailWriteFailed(url)
+        }
+        return url
     }
 }

@@ -19,6 +19,7 @@ public enum WalkVideoError: Error, CustomStringConvertible {
     /// The control that defect #721 did not have. A writer that reports success
     /// and produces a short file must fail here, not later and quietly.
     case shortOutput(appended: Int, decodable: Int, url: URL)
+    case thumbnailWriteFailed(URL)
 
     public var description: String {
         switch self {
@@ -32,6 +33,7 @@ public enum WalkVideoError: Error, CustomStringConvertible {
         case .nonMonotonicTimestamp(let f): return "retimed output timestamp did not increase at source frame \(f)"
         case .shortOutput(let a, let d, let u):
             return "SHORT OUTPUT: appended \(a) frames, \(d) are decodable in \(u.lastPathComponent) — \(a - d) lost with no error from the writer"
+        case .thumbnailWriteFailed(let u): return "could not write the display PNG to \(u.path)"
         }
     }
 }

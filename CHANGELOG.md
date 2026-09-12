@@ -1,5 +1,279 @@
 # Changelog
 
+## 0.4.0 — 2026-09-12
+
+**The conversation reaching the engine.** A third executable target, `walk-mcp`,
+serves WalkKit over MCP stdio. One library, three front doors — the `walk` CLI,
+`Walk.app`, and now an MCP server, which decision #507 makes the primary one.
+
+Operator ruling, #507, verbatim: *"that's what i'm going for, not an outside app.
+tell you go walk this folder while i'm talking to andy, and you tap in to the
+local resources to get it done? see ?"*
+
+---
+
+### The tool surface
+
+Five tools, designed for a model to reason over rather than a person to read.
+Every result carries `structuredContent` and the same JSON serialized into a
+text block, per the spec's backward-compatibility note.
+
+| tool | what it returns |
+| --- | --- |
+| `walk_scan` | one clip: per-candidate frame, timecode, seconds, luminance rise, rise in the clip's own sigma, Y-plane mean and max, Vision confidences, thumbnail path |
+| `walk_scan_folder` | the operator's own sentence. Per-clip results plus what was searched, skipped, unreadable, and which clips returned nothing |
+| `walk_segments` | cut ranges with handles; shortfall reported, never clamped. Writes verified HEVC Main10 HLG when given `out_dir`, otherwise returns the plan |
+| `walk_grade` | the still grade with before, after, and the cast check. `output` optional — measuring without writing is a legitimate answer |
+| `walk_contract` | version, every capability with the version that introduced it, every ABSENT capability **with a reason**, and the MCP protocol versions |
+
+A contract mismatch comes back as `isError: true`, not as a field inside a
+success. The point of the contract is that a stale consumer fails loudly; a
+quiet `ok: false` is something a model reads past.
+
+### DUAL-ERA, AND THAT WAS NOT CAUTION — IT WAS A MEASUREMENT
+
+The current MCP revision, **`2026-07-28`**, removed the `initialize` handshake.
+Servers **MUST** implement `server/discover`, every request declares its version
+in `_meta["io.modelcontextprotocol/protocolVersion"]`, and an unsupported
+version comes back as `UnsupportedProtocolVersionError` (**-32022**). Revisions
+up to `2025-11-25` are what that page calls *legacy*, and they handshake.
+
+MEASURED 2026-09-12 by capturing the real wire with `WALK_MCP_LOG` while Claude
+Code launched the binary:
+
+```
+>> {"method":"initialize","params":{"protocolVersion":"2025-11-25",
+     "clientInfo":{"name":"claude-code","version":"2.1.258", ...}},"id":0}
+>> {"jsonrpc":"2.0","method":"notifications/initialized"}
+>> {"method":"tools/list","jsonrpc":"2.0","id":1}
+```
+
+No discover probe. No per-request `_meta`. **The host that has to register this
+server speaks the legacy era.** A server written to the current specification
+alone would not have connected at all — and would have failed with the host
+looking broken rather than the server. The spec's own compatibility matrix says
+a dual-era server works with both client eras, so both are implemented, and CI
+replays that captured exchange verbatim so it stays true.
+
+### THE CONTRACT LIE, RESOLVED — AND IT WAS AMBIGUITY, NOT A FALSE ENTRY
+
+#507: the operator dropped a folder into Walk.app, it walked eight clips, and
+`ingest.dump` was sitting in `Walk.notImplemented` the whole time.
+
+MEASURED cause: `ProofSheetModel.open(_:)` held its own `contentsOfDirectory`
+call and its own private `videoExtensions` set. **The app walked folders; the
+library did not have the code and so could not declare it.** Contract drift
+inside the version contract — the exact defect the contract exists to catch.
+
+Fixed on the side that was wrong, which was the library:
+
+- **`ClipFinder`** now owns folder enumeration, in WalkKit, with 8 tests.
+  `ingest.folderScan` is declared at 0.4.0.
+- **`ClipScan`** owns the read → scan → detect → classify sequence that existed
+  three times over — in the CLI, in the app, and about to be a third time in the
+  MCP server. `scan.clip` at 0.4.0.
+- The app calls both and holds no folder logic. **CI fails** if `contentsOfDirectory`
+  or `FileManager.default.enumerator` reappears in any front door outside a comment.
+
+**`ingest.dump` STAYS ABSENT, and that is the honest answer.** The bare name was
+doing two jobs at once: *enumerate a folder*, which existed, and #496's *"go
+through my dump for me"* — rank a mixed dump by interest — which does not. A
+one-word entry cannot distinguish those, so it was read as a flat denial. The
+resolution is not to edit the list until it agrees with the app:
+
+- `ingest.folderScan` — **present.** Enumerates and scans.
+- `ingest.dump` — **absent.** Ranking. Its reason now names `ingest.folderScan`
+  explicitly, and a test asserts it does.
+- `ingest.triage` — **new absent entry**, so the general-interest detector
+  (#498) has a name of its own and stops hiding inside `ingest.dump`.
+
+### Every absence now owes a reason
+
+`Walk.notImplementedReasons` is new, printed by `walk contract` and returned by
+`walk_contract`. Tests assert the map is complete, that no reason exists for a
+capability that IS present, and that `ingest.dump`'s reason names what does
+exist. CI asserts it through the shipped binary, because #507's defect was a
+consumer reading the contract output and believing a bare word.
+
+### TWO CAVEATS FROM 0.3.0 ARE DISCHARGED — BY REAL USE, MEASURED HERE
+
+Reproduced through the MCP front door on the operator's own GoPro folder,
+8 clips, **42,728 frames**, 235 candidates, 235 thumbnails, zero failures,
+26 `.THM` sidecars correctly skipped:
+
+```
+GX010035.MP4      296 frames  277.0 fps  thr  1.0000% floor        0 cand  NOTHING FOUND
+GX010036.MP4    15367 frames  313.4 fps  thr  5.7069% statistics  38 cand
+GX010037.MP4     3383 frames  314.3 fps  thr 11.7545% statistics  31 cand
+GX010038.MP4     6926 frames  314.4 fps  thr  3.8566% statistics  50 cand
+GX010039.MP4     3477 frames  315.2 fps  thr  4.7007% statistics   1 cand
+GX010040.MP4     5256 frames  316.3 fps  thr  7.0685% statistics  15 cand
+GX010041.MP4       99 frames  273.7 fps  thr  1.1920% statistics   0 cand  NOTHING FOUND
+GX010042.MP4     7924 frames  317.8 fps  thr  8.8030% statistics 100 cand
+```
+
+**1. The honest-empty path.** 0.3.0 recorded it as proven by unit test only. It
+has now run on real material twice — and `GX010041` closes it better than #507's
+`GX010035` did, because 0035 is **floor** bound and 0041 is **statistics** bound.
+Both halves of `max(statistical, floor)` have produced an honest empty on real
+footage.
+
+**2. The statistical threshold.** 0.3.0 recorded it as unexercised: on all six
+storm clips the 1% floor bound, and on two the MAD estimator collapsed to exactly
+zero. Seven of eight GoPro clips are statistics bound, none collapsed, and one of
+them returned nothing while statistics bound. No longer a guard against a case
+that did not occur.
+
+The counts for 36, 37 and 38 match #507's reading of the operator's screenshot
+**exactly** — 38 over 15,367, 31 over 3,383, 50 over 6,926. The MCP front door
+reproduces the app's numbers frame for frame, which is the evidence that it is a
+wrapper and not a second implementation.
+
+### A NEW MEASUREMENT, AND IT NARROWS THE GAP WITHOUT CLOSING IT
+
+Across all 235 candidates in that non-storm footage, **the highest `lightning`
+confidence is 0.0010** — GX010040 frame 413. On storm clip 0012 nine candidates
+score ≥ 0.078 and the top reads **0.6616**. A separation of roughly 660×.
+
+So the classifier confidence already tells a reader, loudly, that a GoPro
+candidate is not lightning. What is missing is not a better signal on THIS axis;
+it is that **nothing ranks on it**, and knowing a frame is not lightning is not
+the same as knowing it is interesting. 235 brightness changes with
+`lightning ≈ 0` are still 235 unranked brightness changes. #498 is not closer to
+done; its distance is just better described. **The detector was not widened, per
+#507.**
+
+### The deprecation control was narrow and read as broad
+
+0.3.0's CI step greps the build log for `deprecated in macOS 27`, which was that
+release's whole job, and it passed. Decision #504 then recorded *"Zero
+deprecation diagnostics, and CI fails if one returns."*
+
+MEASURED while building 0.4.0: **that is not true of the build as a whole, and
+was not true of 0.3.0 either.** v0.3.0's own green run (34701326745, Swift 6.3.3,
+SDK 26.5) emitted **58 diagnostic lines** of a different deprecation — Core Image
+Kernel Language, `CIColorKernel(source:)`, deprecated since macOS 10.14 — and
+passed, because the control was narrow and nothing looked wider. The control was
+true; the sentence about it was not.
+
+So the control is now **the inventory, not the keyword**.
+`.github/check-deprecations.sh` extracts every deprecation in the build and
+compares it against `.github/deprecations-allowed.txt`:
+
+- a diagnostic not in the allowlist **fails**
+- an allowlist entry that no longer occurs **also fails**, because an allowlist
+  keeping entries nobody has re-checked rots exactly the way a retired KB number
+  cited as live authority rots
+
+Both directions were proven to fail before the build was accepted.
+
+**The CIKL deprecation stands, recorded rather than resolved.** Both colour
+kernels are rational functions not expressible with built-in `CIFilter`s, so the
+supported replacement is a Metal kernel — `.ci.metal` compiled with `-fcikernel`,
+linked with `metallib -cikernel`, loaded through
+`CIColorKernel(functionName:fromMetalLibraryData:)`. SwiftPM has no native Metal
+compilation, so that is a build-tool plugin, a metallib resource and the Xcode
+app target resolving it through the package bundle. A real structural change,
+inherited from 0.1.0, not born here, and out of scope for a release whose job is
+the front door. Owner recorded; the AVFoundation precedent is that Apple does
+eventually remove what it deprecates.
+
+A related judgment, stated because reversing it would look like a tidy-up: the
+`nonisolated(unsafe)` annotations on both kernels now warn as *unnecessary* on
+Swift 6.4, because `CIColorKernel` became `Sendable`. They are **kept**. CI runs
+Swift 6.3.3, and those annotations exist because the v0.2.0 tag was cut on a red
+run whose failure was *"static property 'kernel' is not concurrency-safe"*.
+Removing a warning here by re-introducing that error is not a trade worth making.
+
+### The Makefile target that failed for the right reason
+
+`make deprecations` first reused the shared scratch path, so the build was
+incremental, the compiler re-emitted nothing, the inventory came back empty, and
+the allowlist looked stale. It failed loudly rather than passing on emptiness,
+which is the correct way round — but it was still wrong, and it is the same trap
+the CI workflow already comments on at its Build step. Fixed by wiping a
+dedicated scratch path first: **the log only ever says what the compiler was
+asked to compile.**
+
+### Also measured through the MCP surface
+
+- **`walk_scan`** on clip 0012 frames 2300–2400, stride 1: frame 2347 reads
+  **439.098**, the reference value, through the new shared orchestration.
+  9 candidates, 1.484% threshold, statistics bound, 81.2 fps with exact Y.
+  `inline_images: 2` ranked **frames 2388 (0.6616) and 2367 (0.5581)** to the
+  top — the two frames #504 recorded Probot confirming visually as real,
+  distinct cloud-to-ground strikes.
+- **`walk_segments`** dry run: 9 candidates coalesced to 1 segment, frames
+  2274–2389, 1.919 s, **tail short 0.099 s reported, not clamped**. Written:
+  115 appended, 115 decodable, verified, **3.8333 s at exactly 30.00 fps**,
+  hvc1 10-bit `ITU_R_2100_HLG`, 61.5 MB — the integer-rational retime from 0.3.0
+  holding through a new front door.
+- **`walk_grade`** on a 36.6 MP still: system gamma 0.780 at 100 nits, dramatic
+  spread +0.0030, neutral −0.0143, both within the cast threshold. Measure-only
+  mode (no `output`) works.
+- **Inline image cost**, the number behind the thumbnail decision: 240 KB on
+  disk, **316,984 and 318,076 bytes of base64** for two frames.
+
+### Added
+
+- `walk-mcp` executable target: `JSON.swift`, `Transport.swift`, `Server.swift`,
+  `Tools.swift`, `main.swift`. **No package dependencies** — MCP over stdio is
+  newline-delimited JSON-RPC 2.0, and an SDK would add a second version contract
+  to keep in step with this one by hand, which is the thing §8.5 exists because
+  of. `--version` and `--selftest` for CI.
+- `ClipFinder`, `ClipScan`, `ClipScan.folder`, `StillGrade`,
+  `Frame.writeDisplayPNG`, `Walk.notImplementedReasons`.
+- Capabilities: `scan.clip`, `ingest.folderScan`, `thumbnail.displayPNG`,
+  `grade.still.api`, `contract.reasons`, `mcp.stdio` — all 0.4.0.
+- `notImplemented`: `ingest.triage`.
+- `.github/check-deprecations.sh`, `.github/deprecations-allowed.txt`,
+  `.github/mcp-handshake.sh`.
+- `make mcp`, `make mcp-check`, `make install-mcp`, `make deprecations`,
+  `make verify`.
+- **18 tests**, 48 total: `ClipFinderTests` (8), contract reasons and the #507
+  resolution (5), `ClipScan` known-answer parity, thumbnail-is-not-a-measurement,
+  folder-walk over the storm clips.
+
+### Changed
+
+- The still grade moved out of `Sources/walk/main.swift` into
+  `StillGrade`. Every line of it — the colour-management-disabled load, the raw
+  baseline, the NaN refusal, the managed re-measure, the cast check, the PNG
+  write — was inline in the CLI and unreachable from another target. No number
+  changed; the CLI now formats what the library measures.
+- `walk contract` prints the reason under each absent capability. CI's
+  disjointness parser keys on **indentation** rather than field count, because
+  an `awk NF==1` parser would have started matching wrapped prose.
+- Concurrency: each MCP message is handled on its own task, writes serialized by
+  a `Wire` actor. A folder scan is minutes of work; a host that could not get a
+  `ping` answered or a `notifications/cancelled` delivered during one has no way
+  to tell a long scan from a hung process. `notifications/cancelled` actually
+  cancels — `Running` holds the in-flight tasks — because acknowledging a
+  cancellation and continuing to decode is a success signal with nothing behind
+  it.
+
+### Not in scope, and deliberately untouched
+
+The single-event detector (#507, #498), passthrough (#721), Core ML (#722),
+audio, FCPXML, the Andy rename, and the `Walk.app` distribution question. The
+detector was **not** quietly widened while the front door was built.
+
+### What could not be measured
+
+- **A tool call driven by the host.** The handshake and tool registration were
+  measured live against Claude Code 2.1.258 via
+  `claude --strict-mcp-config --mcp-config`, which persists nothing. The run then
+  failed OAuth before a tool call — a nested-CLI limitation, not a `walk-mcp`
+  fault. Every tool was exercised over the raw wire instead.
+- **`claude mcp add` was not run.** It writes host configuration. `make
+  install-mcp` stages the binary and prints the command; running it is the
+  operator's.
+- Sustained and thermal load. Passthrough correctness. Audio. Custom Core ML.
+  Whether a general-interest detector is achievable at acceptable cost —
+  inferred, per #507, and still not scoped.
+
+---
+
 ## 0.3.0 — 2026-09-12
 
 Video. The spike measured in decision #495 becomes library API, a CLI, and a

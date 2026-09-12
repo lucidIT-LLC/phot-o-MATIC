@@ -70,6 +70,21 @@ jobs:
           fi
           echo "no deprecated reader/writer API in code"
 
+      # AND THE WIDER CONTROL, ADDED IN 0.4.0 BECAUSE THE NARROW ONE READ AS
+      # BROAD. The step above only ever looked for "deprecated in macOS 27",
+      # which was 0.3.0's whole job. MEASURED 2026-09-12: v0.3.0's own green run
+      # (34701326745) emitted 58 lines of a DIFFERENT deprecation — Core Image
+      # Kernel Language, deprecated since macOS 10.14 — and passed, while
+      # decision #504 recorded "Zero deprecation diagnostics". The control was
+      # true and the sentence about it was not.
+      #
+      # This inventories every deprecation in the build and fails on any that is
+      # not in .github/deprecations-allowed.txt with a reason and an owner. It
+      # ALSO fails on an allowlist entry that no longer occurs, so the file
+      # cannot rot into a list of exceptions nobody has checked.
+      - name: Deprecation inventory matches the allowlist
+        run: ./.github/check-deprecations.sh /tmp/build.log
+
       - name: Test
         run: swift test --build-system native
 
@@ -98,9 +113,10 @@ jobs:
           fi
           echo "correctly refused"
 
-      # Pixel 2.5.0 §8.5 is written against Walk 0.2.0. The contract is SUPPOSED
-      # to notice that and this step proves it does, by requiring the refusal.
-      # It is not a failure of Walk; it is Walk detecting a stale consumer.
+      # Pixel 2.5.0 §8.5 is written against Walk 0.2.0 — two releases back now.
+      # The contract is SUPPOSED to notice that and this step proves it does, by
+      # requiring the refusal. It is not a failure of Walk; it is Walk detecting
+      # a stale consumer, and it stays here until that consumer is re-verified.
       - name: Contract — MUST flag the known stale consumer (Pixel 2.5.0 expects 0.2.0)
         run: |
           if .build/release/walk contract --expect 0.2.0; then
@@ -108,7 +124,7 @@ jobs:
             exit 1
           fi
           .build/release/walk contract --expect 0.2.0 || true
-          echo "correctly flagged — Pixel 2.5.0 must be re-verified against 0.3.0"
+          echo "correctly flagged — Pixel 2.5.0 must be re-verified against 0.4.0"
 
       # Capabilities and notImplemented must stay disjoint, checked through the
       # shipped binary rather than only in a unit test.
@@ -116,14 +132,45 @@ jobs:
         run: |
           .build/release/walk contract > /tmp/contract.txt
           cat /tmp/contract.txt
-          CAPS=$(sed -n '/^capabilities/,/^$/p' /tmp/contract.txt | awk 'NF==2 {print $1}' | sort)
-          NOT=$(sed -n '/^NOT implemented/,$p' /tmp/contract.txt | awk 'NF==1 && NR>1 {print $1}' | sort)
+          # INDENTATION IS THE DISCRIMINATOR, not field count. 0.4.0 prints a
+          # wrapped reason under every absent capability, and an `awk NF==1`
+          # parser would have started matching prose. Capability lines are
+          # indented two spaces; reason lines are indented six.
+          CAPS=$(grep -E '^  [a-z][a-zA-Z0-9._]* +[0-9]+\.[0-9]+\.[0-9]+$' /tmp/contract.txt | awk '{print $1}' | sort -u)
+          NOT=$(sed -n '/^NOT implemented/,$p' /tmp/contract.txt | grep -E '^  [a-z][a-zA-Z0-9._]*$' | tr -d ' ' | sort -u)
           BOTH=$(comm -12 <(echo "$CAPS") <(echo "$NOT"))
           if [ -n "$BOTH" ]; then
             echo "::error::listed as both present and not implemented: $BOTH"
             exit 1
           fi
           echo "disjoint"
+          # And every absent capability must have printed a reason. The unit test
+          # asserts the map is complete; this asserts the SHIPPED BINARY says so,
+          # because #507's defect was a consumer reading the contract output and
+          # believing a bare word.
+          MISSING=$(sed -n '/^NOT implemented/,$p' /tmp/contract.txt | grep -c 'NO REASON RECORDED' || true)
+          if [ "$MISSING" != "0" ]; then
+            echo "::error::$MISSING absent capabilities printed with no reason"
+            exit 1
+          fi
+          echo "every absent capability carries a reason"
+
+      # THE MCP FRONT DOOR. Decision #507 makes this the primary way in, so it
+      # is checked as a protocol surface and not merely compiled.
+      - name: walk-mcp starts and names its surface
+        run: |
+          .build/release/walk-mcp --selftest
+          [ "$(.build/release/walk-mcp --version)" = "$(.build/release/walk --version)" ] \
+            || { echo "::error::walk-mcp and walk report different versions from the same source"; exit 1; }
+
+      # Replays the LEGACY handshake exactly as Claude Code 2.1.258 sent it —
+      # captured off the wire on 2026-09-12, not imagined — and the modern
+      # server/discover path the current revision requires, and requires the
+      # refusals: an unsupported protocol version, an unknown tool, and a
+      # consumer written against 0.2.0. A gate that has only ever accepted is
+      # not a gate.
+      - name: walk-mcp answers both protocol eras and refuses what it must
+        run: ./.github/mcp-handshake.sh .build/release/walk-mcp
 
       # The app target must build. SwiftPM cannot produce a bundle, so this is
       # the only thing that proves the SwiftUI target still compiles.
@@ -131,6 +178,24 @@ jobs:
         run: |
           xcodebuild -project App/Walk.xcodeproj -scheme Walk -configuration Release \
             CODE_SIGNING_ALLOWED=NO build
+
+      # THE APP MUST NOT WALK FOLDERS BY ITSELF AGAIN. That is decision #507's
+      # defect in one line: ProofSheetModel held its own contentsOfDirectory
+      # call and its own videoExtensions set, so the app did folder-walking the
+      # library did not declare and `ingest.dump` sat in notImplemented while it
+      # happened. ClipFinder owns it now. Comments may name it; code may not.
+      - name: Folder enumeration lives in WalkKit, not in a front door
+        run: |
+          HITS=$(grep -rnE "contentsOfDirectory|FileManager\.default\.enumerator" App/ Sources/walk/ Sources/walk-mcp/ \
+                 | grep -vE ":[0-9]+:[[:space:]]*(//|\*|///)" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::a front door is enumerating a directory itself — use ClipFinder"
+            exit 1
+          fi
+          grep -q "enum ClipFinder" Sources/WalkKit/ClipFinder.swift \
+            || { echo "::error::ClipFinder is gone"; exit 1; }
+          echo "folder enumeration is in WalkKit only"
 
       # The tag must equal the version in source. This is the control that stops
       # a release being tagged v0.3.0 while the binary reports 0.2.0.

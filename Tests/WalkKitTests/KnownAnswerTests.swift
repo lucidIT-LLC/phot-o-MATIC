@@ -1,6 +1,8 @@
 import Testing
 import Foundation
 import CoreMedia
+import CoreGraphics
+import ImageIO
 @testable import WalkKit
 
 // THE KNOWN-ANSWER TEST. This is the one that matters.
@@ -166,4 +168,94 @@ func theKnownAnswerMaterialIsAbsentAndThatIsReported() {
 
           """)
     #expect(!KnownAnswer.available)
+}
+
+// MARK: - 0.4.0: the shared orchestration must not change a number
+
+// THE CLAIM 0.4.0 MAKES IS THAT NOTHING MOVED. `ClipScan` gathered a sequence
+// that existed three times over — in the CLI, in the app, and about to be a
+// third time in the MCP server — and the MCP surface is a wrapper over it. A
+// wrapper that quietly re-derives a value is not a wrapper, so this asserts the
+// known answer THROUGH the new path rather than only through FrameScanner.
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(5)))
+func clipScanReturnsTheSameKnownAnswerAsTheDirectPath() async throws {
+    var options = ClipScan.Options(frames: 2328..<2362, computeYPlane: true, yPlaneStride: 1)
+    options.thumbnailDirectory = nil          // measured here, not pictured
+    let result = try await ClipScan.run(KnownAnswer.url, options: options)
+
+    // Frame 2347's Y mean is the reference value, to the rounding of the
+    // three-decimal reference itself.
+    let strike = try #require(result.candidates.first { $0.frame == 2347 })
+    let y = try #require(strike.yMean)
+    #expect(abs(y - KnownAnswer.yMeans[2347]!) < 0.001,
+            "ClipScan reported \(y) for frame 2347; the reference is \(KnownAnswer.yMeans[2347]!)")
+
+    // And the Vision confidence, through the same path.
+    let lightning = try #require(strike.confidence("lightning"))
+    #expect(abs(lightning - KnownAnswer.lightning[2347]!) < 0.01)
+
+    // Every one of #495's six strikes is still a candidate.
+    let frames = Set(result.candidates.map(\.frame))
+    for expected in KnownAnswer.sixStrikes {
+        #expect(frames.contains(expected), "strike at frame \(expected) was not found")
+    }
+
+    // yMeanIsExact is what the MCP surface reports off `yPlaneStride`. At stride
+    // 1 it must be true, or a consumer will compare an approximation against a
+    // reference and conclude the engine drifted.
+    #expect(result.yPlaneStride == 1)
+    #expect(result.classified)
+}
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(5)))
+func aThumbnailIsWrittenAndIsAPictureNotAMeasurement() async throws {
+    let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("walk-thumbs-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    var options = ClipScan.Options(frames: 2344..<2350, computeYPlane: false, yPlaneStride: 1)
+    options.classify = false
+    options.thumbnailDirectory = dir
+    options.thumbnailMaxWidth = 320
+    let result = try await ClipScan.run(KnownAnswer.url, options: options)
+
+    let strike = try #require(result.candidates.first { $0.frame == 2347 })
+    let thumb = try #require(strike.thumbnail)
+    #expect(FileManager.default.fileExists(atPath: thumb.path))
+    #expect(thumb.lastPathComponent.contains("f002347"),
+            "the filename must name the frame, or a path handed back cannot be traced to a row")
+
+    // It is a real PNG at the width asked for, and it is NOT where any number
+    // came from — classification was off and no Y plane was read, yet the
+    // candidate still carries its luminance measurements.
+    let source = try #require(CGImageSourceCreateWithURL(thumb as CFURL, nil))
+    let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+    #expect(image.width == 320)
+    #expect(strike.confidences == nil, "classification was off; that must read as null, never as zero")
+    #expect(strike.yMean == nil)
+    #expect(strike.ciLuma > 0)
+}
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(10)))
+func aFolderWalkOverTheStormClipsFindsEachClipSeparately() async throws {
+    let folder = KnownAnswer.url.deletingLastPathComponent()
+    // Two clips only: this asserts the folder path, not the whole archive.
+    var options = ClipScan.Options.triage()
+    options.classify = false
+    options.frames = 0..<120
+    let result = try await ClipScan.folder([folder],
+                                           find: .init(recursive: false, maximumClips: 2),
+                                           options: options)
+    #expect(result.found.clips.count == 2)
+    #expect(result.clips.count == 2)
+    #expect(result.failures.isEmpty)
+    #expect(result.totalFramesScanned > 0)
+    // The .JPG, .DNG and .SRT sidecars sitting beside the clips must be skipped,
+    // not attempted. A folder walk that tries to decode a sidecar reports a
+    // failure the operator has to interpret.
+    #expect(!result.found.skipped.isEmpty)
+    #expect(result.found.skipped.allSatisfy {
+        !ClipFinder.videoExtensions.contains($0.pathExtension.lowercased())
+    })
 }

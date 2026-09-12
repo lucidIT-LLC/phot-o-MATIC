@@ -1,8 +1,4 @@
 import Foundation
-import CoreImage
-import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
 import WalkKit
 
 // walk scan     <video> [--json]                 — what the engine found
@@ -14,6 +10,18 @@ import WalkKit
 // A grade that does not report what it changed is a guess wearing a number.
 
 let args = CommandLine.arguments
+
+/// Soft-wrap for the contract printout. Terminal formatting only.
+func wrap(_ s: String, width: Int) -> [String] {
+    var lines = [String](), line = ""
+    for word in s.split(separator: " ") {
+        if line.isEmpty { line = String(word) }
+        else if line.count + 1 + word.count <= width { line += " " + word }
+        else { lines.append(line); line = String(word) }
+    }
+    if !line.isEmpty { lines.append(line) }
+    return lines
+}
 
 // --- version and contract surface ---------------------------------------
 // A consumer written against a specific Walk can verify it here and FAIL
@@ -40,7 +48,17 @@ if args.count >= 2, args[1] == "contract" {
         print("  \(k.padding(toLength: 22, withPad: " ", startingAt: 0)) \(Walk.capabilities[k]!)")
     }
     print("\nNOT implemented — do not infer these from silence:")
-    for k in Walk.notImplemented.sorted() { print("  \(k)") }
+    for k in Walk.notImplemented.sorted() {
+        print("  \(k)")
+        // The reason is printed, not just the name. 0.4.0 exists partly because
+        // `ingest.dump` as a bare word was read as a flat no while the app was
+        // walking folders (#507); a one-word denial cannot say where the edge is.
+        if let why = Walk.notImplementedReasons[k] {
+            for line in wrap(why, width: 86) { print("      \(line)") }
+        } else {
+            print("      NO REASON RECORDED — this is a contract defect; see ContractTests")
+        }
+    }
     exit(0)
 }
 
@@ -85,71 +103,30 @@ let outURL = URL(fileURLWithPath: args[2])
 let lookName = args.count > 3 ? args[3] : "dramatic"
 let nits = args.count > 4 ? (Double(args[4]) ?? 100) : 100
 
-var look: HLGGrade.Look = (lookName == "neutral") ? .neutral : .dramatic
-look.targetNits = nits
-
-// Colour management DISABLED on load. The file holds HLG-encoded BT.2020
-// values; letting ColorSync interpret them transforms the numbers before the
-// transform runs.
-guard let input = CIImage(contentsOf: inURL, options: [.colorSpace: NSNull()]) else {
-    FileHandle.standardError.write("cannot read \(inURL.path)\n".data(using: .utf8)!)
+// THE GRADE ITSELF LIVES IN WalkKit AS OF 0.4.0, not here.
+//
+// Every line of this sequence used to be inline in this file: the
+// colour-management-disabled load, the raw baseline, the NaN guard, the grade,
+// the managed re-measure, the cast check, the PNG write. The MCP front door
+// (#507) needs all of it, and the only way to reach it from another target was
+// to write it out again. Two copies of a measurement chain is the drift this
+// repository exists to catch, so it moved to StillGrade and both front doors
+// call the same code. What prints below is formatting; nothing here measures.
+do {
+    let r = try StillGrade.run(input: inURL, output: outURL,
+                               lookName: lookName, targetNits: nits)
+    print(String(format: "input         %d x %d  (%.1f MP)", r.width, r.height, r.megapixels))
+    print(String(format: "system gamma  %.3f   (BT.2390, target %.0f cd/m2)",
+                 r.systemGamma, r.targetNits))
+    print(String(format: "before        R %.4f  G %.4f  B %.4f   luma %.4f   spread %.4f   [raw HLG]",
+                 r.before.r, r.before.g, r.before.b, r.before.luma, r.before.spread))
+    print(String(format: "after         R %.4f  G %.4f  B %.4f   luma %.4f   spread %.4f   [%@, linear 709]",
+                 r.after.r, r.after.g, r.after.b, r.after.luma, r.after.spread, r.lookName))
+    print(String(format: "cast check    spread %+.4f  %@", r.castDelta,
+                 r.addedCast ? "<-- WARNING: the grade ADDED a colour cast" : "ok"))
+    print(String(format: "grade+measure %.1f ms", r.milliseconds))
+    if let out = r.output { print("wrote         \(out.path)") }
+} catch {
+    FileHandle.standardError.write("\(error)\n".data(using: .utf8)!)
     exit(1)
 }
-
-let linear = CGColorSpace(name: CGColorSpace.linearSRGB)!
-let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
-let ctx = CIContext(options: [
-    .workingColorSpace: linear,
-    .outputColorSpace: srgb,
-    .cacheIntermediates: false,
-])
-
-let w = Int(input.extent.width), h = Int(input.extent.height)
-print("input         \(w) x \(h)  (\(String(format: "%.1f", Double(w*h)/1e6)) MP)")
-print(String(format: "system gamma  %.3f   (BT.2390, target %.0f cd/m2)",
-             HLGGrade.systemGamma(targetNits: nits), nits))
-
-let before = HLGGrade.meanRaw(input)
-guard before.valid else {
-    FileHandle.standardError.write(
-        "BASELINE MEASUREMENT FAILED (NaN) — refusing to grade without a baseline.\n"
-            .data(using: .utf8)!)
-    exit(1)
-}
-print(String(format: "before        R %.4f  G %.4f  B %.4f   luma %.4f   spread %.4f   [raw HLG]",
-             before.r, before.g, before.b, before.luma, before.spread))
-
-let t0 = Date()
-let graded = HLGGrade.apply(to: input, look: look)
-let after = HLGGrade.mean(graded, context: ctx, colorSpace: linear)
-let ms = Date().timeIntervalSince(t0) * 1000
-
-guard after.valid else {
-    FileHandle.standardError.write("RESULT MEASUREMENT FAILED (NaN).\n".data(using: .utf8)!)
-    exit(1)
-}
-print(String(format: "after         R %.4f  G %.4f  B %.4f   luma %.4f   spread %.4f   [%@, linear 709]",
-             after.r, after.g, after.b, after.luma, after.spread, lookName))
-
-let castDelta = after.spread - before.spread
-print(String(format: "cast check    spread %+.4f  %@",
-             castDelta,
-             castDelta > 0.01 ? "<-- WARNING: the grade ADDED a colour cast" : "ok"))
-print(String(format: "grade+measure %.1f ms", ms))
-
-guard let cg = ctx.createCGImage(graded, from: graded.extent,
-                                 format: .RGBA8, colorSpace: srgb) else {
-    FileHandle.standardError.write("render failed\n".data(using: .utf8)!)
-    exit(1)
-}
-guard let dest = CGImageDestinationCreateWithURL(
-        outURL as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-    FileHandle.standardError.write("cannot open \(outURL.path)\n".data(using: .utf8)!)
-    exit(1)
-}
-CGImageDestinationAddImage(dest, cg, nil)
-guard CGImageDestinationFinalize(dest) else {
-    FileHandle.standardError.write("write failed\n".data(using: .utf8)!)
-    exit(1)
-}
-print("wrote         \(outURL.path)")

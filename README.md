@@ -1,15 +1,18 @@
 # Walk
 
-**An on-device photographic and video engine for macOS.** Measurement first,
-grading second, no third-party application required.
+**An on-device photographic and video engine for macOS, reachable from a
+conversation.** Measurement first, grading second, no third-party application
+required.
 
-Walk goes through the dump for you, hands off, and shows you what is in it.
-[Pixel](https://github.com/lucidIT-LLC/o-matic-studio) then works hands-on with
-you in your own application on the finals, using this engine as her instrument.
+You say *"go walk this folder"* while you are talking to the coach. The engine
+runs here, on your own hardware, fast and free after install, and the numbers
+come back into the conversation. That is the product — not an application you
+open. The MCP server is the front door; the CLI and the app are the other two
+ways in to the same library.
 
-The engine is deterministic and carries no model; the judgment lives in Pixel.
-That separation is deliberate — a model upgrade must never silently change a
-measured value.
+The engine is deterministic and carries no model; the judgment lives in the
+coach. That separation is deliberate — a model upgrade must never silently
+change a measured value.
 
 ---
 
@@ -64,6 +67,19 @@ the detector derives its threshold from the clip instead of carrying a constant
 - **Whole-image measurement** — mean channels, luma, and a colour-cast check
 - **A grade that reports what it changed**, and refuses to run without a baseline
 
+**From a conversation**
+
+- **An MCP server over stdio** — `walk_scan`, `walk_scan_folder`,
+  `walk_segments`, `walk_grade`, `walk_contract`. Structured JSON per candidate,
+  a written PNG path per candidate so a frame can be *shown* rather than
+  described, and the version contract exposed through the same surface so a
+  consumer can verify the server against the library it wraps.
+- **Dual-era protocol.** The current MCP revision (`2026-07-28`) removed the
+  `initialize` handshake in favour of `server/discover` and per-request
+  metadata. Measured 2026-09-12: Claude Code 2.1.258 still opens with
+  `initialize` at `2025-11-25`. Walk answers both, and CI replays the captured
+  Claude Code exchange so that stays true.
+
 **What it will never do** — see design rule 5.
 
 ## Usage
@@ -77,6 +93,38 @@ walk identifiers [substring]
 walk <input> <output> [neutral|dramatic] [targetNits]
 walk contract [--expect <version>]
 walk --version
+
+walk-mcp                        # MCP server over stdio; a host launches it
+walk-mcp --selftest             # names its transport, protocols and tools
+```
+
+### The MCP tools
+
+```
+walk_scan          path, from_frame, to_frame, vision, identifiers,
+                   y_plane_stride, sigma, floor, thumbnails, thumbnail_dir,
+                   thumbnail_width, inline_images, max_candidates
+walk_scan_folder   path | paths, recursive, max_clips, + every walk_scan option
+walk_segments      path, handles | lead_seconds + tail_seconds, out_dir, fps,
+                   from_frame, to_frame, vision, sigma, floor
+walk_grade         input, output, look (neutral|dramatic), target_nits
+walk_contract      expect
+```
+
+`walk_scan` defaults to `y_plane_stride: 1` — one clip is where exactness is
+affordable. `walk_scan_folder` defaults to 4, and every result says
+`yMeanIsExact` so an approximation is never compared against a reference. When
+`vision` is off, confidences come back as `null` and never as `0`: a frame that
+was not looked at is not a frame that scored nothing.
+
+```
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"walk_scan_folder",
+  "arguments":{"path":"/Volumes/NVMeExt1/Content/Photography/100GOPRO","max_clips":8}}}' \
+  | walk-mcp
+```
+```
+8 clips scanned, 42728 frames, 235 candidates — 2 clips returned nothing,
+which is an answer and not a failure
 ```
 
 ```
@@ -110,6 +158,27 @@ cast check    spread +0.0008  ok
 grade+measure 446.5 ms
 ```
 
+## From a conversation
+
+```
+make install-mcp     # copies walk-mcp to ~/.local/bin and prints the one command
+claude mcp add --scope user --transport stdio walk ~/.local/bin/walk-mcp
+```
+
+`make mcp-check` replays both protocol eras against the built binary and
+requires the refusals — an unsupported protocol version, an unknown tool, and a
+consumer written against an older Walk. Set `WALK_MCP_LOG=<file>` in the
+server's environment to capture every message in both directions; that is how
+the era question above was answered rather than assumed.
+
+**Thumbnails come back as paths, not bytes, and that was decided rather than
+defaulted.** Measured on this material: a 640-pixel display PNG off a 4K frame
+is about 240 KB, roughly 317 KB once base64-encoded, and one GoPro clip in the
+operator's own folder produced 38 candidates — inlining all of them would be
+around 12 MB of images for one clip. So every candidate carries a `thumbnail`
+path and `inline_images` asks for a capped handful of the highest-confidence
+frames as image content.
+
 ## The app
 
 One window. Open a video or a folder, and it shows a proof sheet of what the
@@ -127,9 +196,12 @@ against known material instead of asserted to work.
 ## Build
 
 ```
-swift build -c release        # the library and the CLI
-make test                     # 30 tests
+swift build -c release        # the library, the CLI and the MCP server
+make test                     # 48 tests
+make mcp-check                # both MCP protocol eras, refusals required
+make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
+make verify                   # everything above, in CI's order
 ```
 
 Requires **macOS 26** or later. The floor moved from 14 in 0.3.0 because the
@@ -154,16 +226,38 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
   operator's archive on an external volume and cannot be committed. A test that
   runs only when the clip is *absent* prints exactly which checks were skipped,
   so a green run is not mistaken for a verified known answer.
-- **"Nothing found" is proven by unit test, not by real footage.** All six storm
-  clips returned at least one candidate.
-- **The detector's statistical threshold never bound on real material.** On all
-  six clips the 1% floor was the binding constraint, and on two of them the
-  robust scale estimator collapsed to exactly zero. The statistics guard against
-  a clip noisier than the floor; that case has not occurred here.
+- **~~"Nothing found" is proven by unit test, not by real footage.~~**
+  **Discharged 2026-09-12.** `GX010035` (296 frames) and `GX010041` (99 frames)
+  both returned nothing on real GoPro footage, and reported the threshold and
+  which half of it bound.
+- **~~The detector's statistical threshold never bound on real material.~~**
+  **Discharged 2026-09-12.** Seven of eight GoPro clips are *statistics bound*
+  where all six storm clips were *floor bound*, and `GX010041` is the case that
+  closes it properly: the statistical half bound at 1.192% **and** returned
+  nothing. Both halves of `max(statistical, floor)` have now produced an honest
+  empty on real material.
+- **The detector finds one kind of event.** It is a whole-frame luminance rise
+  with a classifier attached. On non-storm footage a candidate is a brightness
+  change — 235 candidates across 42,728 frames of GoPro footage, and the highest
+  `lightning` confidence among all of them is **0.0010**, against 0.6616 on the
+  storm clip. The confidence separates them cleanly; nothing yet *ranks* on it.
+  `ingest.dump` stays absent for this reason and `walk_contract` says so.
+- **A deprecation stands, recorded rather than resolved.** Core Image Kernel
+  Language, deprecated since macOS 10.14, carries both colour kernels. The
+  replacement is a Metal kernel, which means Metal compilation inside SwiftPM;
+  not attempted in 0.4.0. It is in `.github/deprecations-allowed.txt` with a
+  reason and an owner, and CI fails on any deprecation that is not.
 - **Passthrough writing is not shipped.** Open defect task #721: 22 frames lost
   with every success signal returning true.
 - **No audio.** Never read, retimed or written.
 - **The app is not sandboxed.** The trade is stated in `WalkApp.swift`.
+- **The MCP server was verified, but not registered.** The handshake and tool
+  registration were measured live against Claude Code 2.1.258 using
+  `--strict-mcp-config --mcp-config`, which persists nothing. A *tool call*
+  driven by the host was not completed: the nested CLI run could not
+  authenticate. Every tool was exercised over the raw wire instead. Persisting
+  the registration is `claude mcp add`, which writes host configuration and is
+  the operator's to run.
 
 ---
 

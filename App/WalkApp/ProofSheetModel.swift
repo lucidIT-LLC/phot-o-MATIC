@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import CoreGraphics
+import ImageIO
 import WalkKit
 
 /// One found moment, with everything measured about it and nothing judged.
@@ -71,33 +72,28 @@ final class ProofSheetModel {
         visibleMoments.first { $0.id == selectedMoment }
     }
 
-    static let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "mts", "m2ts"]
-
     /// See the comment at the scan call. 1 is exact and slow, 4 is fast and
     /// approximate, and the UI labels whichever it used.
     static let appYPlaneStride = 4
 
+    /// THE FOLDER WALK LEFT THIS FILE IN 0.4.0, AND THAT WAS THE POINT.
+    ///
+    /// This method used to hold its own `contentsOfDirectory` call and its own
+    /// private `videoExtensions` set. That is how the operator dropped a folder
+    /// in, watched the app walk eight clips, and found `ingest.dump` sitting in
+    /// `Walk.notImplemented` the whole time — decision #507, contract drift
+    /// inside the version contract. The app was doing something the library did
+    /// not declare because the app had quietly implemented it.
+    ///
+    /// `ClipFinder` now owns it, `ingest.folderScan` declares it, and it has
+    /// tests. The app is a front door again.
     func open(_ urls: [URL]) {
-        var files = [URL]()
-        let fm = FileManager.default
-        for url in urls {
-            if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
-                let items = (try? fm.contentsOfDirectory(at: url,
-                                                         includingPropertiesForKeys: nil,
-                                                         options: [.skipsHiddenFiles])) ?? []
-                files.append(contentsOf: items.filter {
-                    Self.videoExtensions.contains($0.pathExtension.lowercased())
-                })
-            } else if Self.videoExtensions.contains(url.pathExtension.lowercased()) {
-                files.append(url)
-            }
-        }
-        files.sort { $0.lastPathComponent < $1.lastPathComponent }
-        guard !files.isEmpty else {
-            state = .failed("Nothing to scan — no video files in what you opened.")
+        let found = ClipFinder.find(urls)
+        guard !found.clips.isEmpty else {
+            state = .failed("Nothing to scan — \(found.verdict)")
             return
         }
-        scan(files)
+        scan(found.clips)
     }
 
     func cancel() {
@@ -135,12 +131,15 @@ final class ProofSheetModel {
         }
     }
 
-    /// The whole engine, in the order the CLI uses it. Nothing here is app-only:
-    /// read, scan, detect, classify.
+    /// One clip, through the library's own orchestration.
+    ///
+    /// This was a hand-written copy of `read, scan, detect, classify` — the same
+    /// sequence the CLI had and the MCP server would have needed a third time.
+    /// Three copies of an order of operations is how a front door drifts from
+    /// the library it fronts, so the sequence moved to `ClipScan` and this calls
+    /// it. No number here changed.
     private static func scanOne(_ url: URL,
                                 progress: @escaping @Sendable (Double) -> Void) async throws -> ClipResult {
-        let reader = try await VideoReader(url: url)
-        let total = max(1, reader.info.estimatedFrameCount)
         // STRIDE 4, NOT 1, AND THE UI SAYS SO.
         //
         // Stride 1 is the known-answer path — it is what agrees with
@@ -150,46 +149,44 @@ final class ProofSheetModel {
         // versus 8 s. The app takes the fast one because triage is its job, and
         // every Y figure it shows is LABELLED "stride 4" so nobody compares it
         // to a reference it was never going to match. `walk scan` uses stride 1.
-        let series = try await FrameScanner.scan(
-            reader, options: .init(computeYPlane: true, yPlaneStride: Self.appYPlaneStride)
-        ) { index in
+        var options = ClipScan.Options.triage(
+            thumbnailDirectory: ClipScan.defaultThumbnailDirectory())
+        options.yPlaneStride = Self.appYPlaneStride
+
+        // The frame count is needed for the progress fraction, and reading the
+        // header is cheap next to the scan it precedes.
+        let total = max(1, try await VideoReader(url: url).info.estimatedFrameCount)
+        let scanned = try await ClipScan.run(url, options: options) { index in
             if index % 60 == 0 { progress(Double(index) / Double(total)) }
         }
-        let detection = EventDetector().detect(series)
-        let classifier = Classifier()
 
-        var moments = [Moment]()
-        for event in detection.events {
-            if Task.isCancelled { break }
-            var labels = [(String, Double)]()
-            var lightning = 0.0
-            var thumb: CGImage? = nil
-            if let frame = try? await reader.frame(at: event.index) {
-                if let result = try? await classifier.classify(frame) {
-                    labels = result.top.map { ($0.identifier, $0.confidence) }
-                    lightning = result.confidence("lightning")
-                }
-                thumb = frame.makeDisplayImage(maxWidth: 560)
-            }
-            let sample = series.sample(at: event.index)
-            moments.append(Moment(
-                clip: url, frame: event.index,
-                timecode: reader.timecode(ofFrame: event.index),
-                time: event.time, ciLuma: event.value, baseline: event.baseline,
-                relativeRise: event.relativeRise, sigma: event.sigma,
-                yMean: sample?.yMean, yMax: sample?.yMax,
-                yClipped: sample?.yClipped ?? false,
-                mergedFrames: event.mergedFrames,
-                labels: labels, lightning: lightning, thumbnail: thumb))
+        let moments = scanned.candidates.map { c in
+            Moment(clip: url, frame: c.frame, timecode: c.timecode, time: c.time,
+                   ciLuma: c.ciLuma, baseline: c.baseline, relativeRise: c.relativeRise,
+                   sigma: c.sigma, yMean: c.yMean, yMax: c.yMax, yClipped: c.yClipped,
+                   mergedFrames: c.mergedFrames,
+                   labels: c.topLabels.map { ($0.identifier, $0.confidence) },
+                   lightning: c.confidence("lightning") ?? 0,
+                   thumbnail: c.thumbnail.flatMap(Self.loadThumbnail))
         }
 
         return ClipResult(
-            url: url, info: reader.info, decodedFrames: series.decodedFrames,
-            scanSeconds: series.wallSeconds, framesPerSecond: series.framesPerSecond,
-            threshold: detection.threshold, boundBy: detection.boundBy.rawValue,
-            statisticalThreshold: detection.statisticalThreshold,
-            scaleCollapsed: detection.scaleCollapsed,
-            verdict: detection.verdict, missingIndices: series.missingIndices,
+            url: url, info: scanned.info, decodedFrames: scanned.decodedFrames,
+            scanSeconds: scanned.scanSeconds, framesPerSecond: scanned.framesPerSecond,
+            threshold: scanned.detection.threshold,
+            boundBy: scanned.detection.boundBy.rawValue,
+            statisticalThreshold: scanned.detection.statisticalThreshold,
+            scaleCollapsed: scanned.detection.scaleCollapsed,
+            verdict: scanned.verdict, missingIndices: scanned.missingIndices,
             moments: moments)
     }
+
+    /// `ClipScan` writes the display PNG to disk — one path, shared with the MCP
+    /// server, which needs a file it can hand back rather than bytes in memory.
+    /// The app reads it straight back for display.
+    private static func loadThumbnail(_ url: URL) -> CGImage? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(src, 0, nil)
+    }
+
 }

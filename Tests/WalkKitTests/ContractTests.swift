@@ -56,3 +56,55 @@ import Testing
     let r = HLGGrade.Reading(r: .nan, g: 0, b: 0, luma: .nan)
     #expect(!r.valid, "NaN must never read as a valid measurement")
 }
+
+// MARK: - 0.4.0: the contract must explain itself
+
+// THE DEFECT THIS TEST EXISTS FOR. `ingest.dump` sat in `notImplemented` at
+// 0.3.0 as a bare word, while the app walked a folder of eight clips (#507). The
+// entry was not wrong so much as unreadable: it was doing duty for "enumerate a
+// folder", which existed, and "rank a dump by interest", which did not. A
+// one-word denial cannot make that distinction, so the list was believed to say
+// something it did not say. Every absence now owes a reason.
+
+@Test func everyAbsentCapabilityCarriesAReason() {
+    for name in Walk.notImplemented {
+        let reason = Walk.notImplementedReasons[name]
+        #expect(reason != nil, "\(name) is declared not-implemented with no reason recorded")
+        #expect((reason?.count ?? 0) >= 40,
+                "\(name)'s reason is too short to say where the edge actually is")
+    }
+}
+
+@Test func noReasonIsRecordedForSomethingThatIsImplemented() {
+    // The reasons map is not a scratchpad. A reason for a capability that is
+    // present would read as a denial of something Walk does.
+    let absent = Set(Walk.notImplemented)
+    for name in Walk.notImplementedReasons.keys {
+        #expect(absent.contains(name),
+                "\(name) has a not-implemented reason but is not in notImplemented")
+    }
+}
+
+@Test func folderScanIsDeclaredAndDumpIsNot() {
+    // The exact resolution of #507's contract drift, asserted so it cannot be
+    // quietly reversed in either direction: the library walks folders and says
+    // so, and it still does not claim to sort them.
+    #expect(Walk.capabilities["ingest.folderScan"] == "0.4.0")
+    #expect(Walk.notImplemented.contains("ingest.dump"))
+    #expect(Walk.notImplemented.contains("ingest.triage"))
+    #expect(Walk.notImplementedReasons["ingest.dump"]?.contains("ingest.folderScan") == true,
+            "ingest.dump's reason must name what DOES exist, or the same ambiguity returns")
+}
+
+@Test func theMCPFrontDoorIsDeclared() {
+    #expect(Walk.capabilities["mcp.stdio"] == "0.4.0")
+}
+
+@Test func versionAndCapabilityVersionsAgree() {
+    // A capability cannot have been introduced by a Walk that does not exist yet.
+    for (name, introduced) in Walk.capabilities {
+        let c = Walk.check(expecting: introduced)
+        #expect(c.ok || c.detail.contains("NEWER"),
+                "\(name) claims to have arrived in \(introduced), which is newer than \(Walk.version)")
+    }
+}

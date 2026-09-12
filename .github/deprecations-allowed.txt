@@ -1,0 +1,47 @@
+# DEPRECATIONS THAT ARE ALLOWED TO STAND, EACH WITH A REASON AND A DATE.
+#
+# WHY THIS FILE EXISTS. 0.3.0's CI control greps the build log for
+# "deprecated in macOS 27" only, because resolving the AVFoundation reader and
+# writer deprecation was that release's whole job. It passed. Decision #504 then
+# recorded "Zero deprecation diagnostics, and CI fails if one returns."
+#
+# MEASURED 2026-09-12 while building 0.4.0: that is not true of the build as a
+# whole, and was not true of 0.3.0 either. v0.3.0's own green run (34701326745,
+# Swift 6.3.3, SDK 26.5) emitted the Core Image Kernel Language deprecation
+# below, 58 diagnostic lines of it, and passed — because the control was narrow
+# and nothing looked wider. A narrow check that reads as a broad one is the
+# defect class this repository is about: absence of a finding produced by
+# absence of a search.
+#
+# So the control is now the inventory, not the keyword. CI extracts EVERY
+# deprecation diagnostic in the build and compares it against this file:
+#   * a diagnostic that is not listed here FAILS the build
+#   * an entry listed here that no longer appears ALSO FAILS, because an
+#     allowlist that keeps entries nothing emits any more rots exactly the way a
+#     retired KB number cited as live authority rots
+#
+# FORMAT: one substring per line, matched against the normalized diagnostic text.
+# Comments and blank lines ignored. Keep the reason directly above the entry.
+
+# ---------------------------------------------------------------------------
+# Core Image Kernel Language. INHERITED FROM 0.1.0, NOT INTRODUCED IN 0.4.0.
+#
+# HLGGrade.kernel is the BT.2100 inverse OETF + OOTF + BT.2020-to-709 chain and
+# DisplayImage.displayKernel is the Hable filmic curve. Both are rational
+# functions of the input; neither is expressible with Core Image's built-in
+# filters, so "use a built-in instead" is not available.
+#
+# The supported replacement is a Metal kernel — a .ci.metal source compiled with
+# -fcikernel and linked with metallib -cikernel, loaded through
+# CIColorKernel(functionName:fromMetalLibraryData:). SwiftPM has no native Metal
+# compilation, so that means a build-tool plugin invoking xcrun, a metallib
+# resource, and the Xcode app target resolving it through the package bundle.
+# That is a real structural change to the build, and it was NOT attempted during
+# 0.4.0, whose scope is the MCP front door (#507).
+#
+# It is recorded here rather than resolved, and the deadline is not open-ended:
+# CIKL has been deprecated since macOS 10.14 and the AVFoundation precedent
+# (#495, #504) is that Apple does eventually remove what it deprecates, at which
+# point every measurement in this library stops compiling at once.
+# Owner: Carver. Recorded 2026-09-12 against Walk 0.4.0.
+'init(source:)' was deprecated in macOS 10.14: Core Image Kernel Language API deprecated.
