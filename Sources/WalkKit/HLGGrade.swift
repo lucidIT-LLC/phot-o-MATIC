@@ -55,7 +55,14 @@ public enum HLGGrade {
     }
     """
 
-    private static let kernel: CIColorKernel = {
+    /// `nonisolated(unsafe)` and not an oversight. CI on Swift 6.0 rejected this
+    /// as `static let` — *"'kernel' is not concurrency-safe because non-Sendable
+    /// type 'CIColorKernel' may have shared mutable state"* — and that error is
+    /// what made the v0.2.0 tag's CI run red (measured 2026-09-12, run
+    /// 34698731947). A CIColorKernel is compiled once and never mutated
+    /// afterwards; `apply` reads it and returns a new CIImage. The unsafe
+    /// annotation states that invariant rather than hiding the diagnostic.
+    nonisolated(unsafe) private static let kernel: CIColorKernel = {
         guard let k = CIColorKernel(source: kernelSource) else {
             fatalError("HLG kernel failed to compile")
         }

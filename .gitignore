@@ -1,4 +1,11 @@
 .build/
 .DS_Store
-*.xcodeproj
 .swiftpm/
+# Stray Xcode build locations. The project now puts products under
+# ~/Library/Developer/Xcode/DerivedData (see the comment in project.pbxproj:
+# building inside ~/Documents hits iCloud's File Provider xattrs and codesign
+# refuses), but an older checkout or a manual xcodebuild can still leave these.
+build/
+App/Build/
+*.xcuserdatad
+xcuserdata/

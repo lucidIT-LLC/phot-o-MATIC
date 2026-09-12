@@ -5,7 +5,10 @@ import ImageIO
 import UniformTypeIdentifiers
 import WalkKit
 
-// walk grade <input> <output> [neutral|dramatic] [targetNits]
+// walk scan     <video> [--json]                 — what the engine found
+// walk segments <video> [--handles s] [--out dir] — cut it
+// walk <input> <output> [neutral|dramatic] [nits] — the 0.1.0 still grade
+// walk contract [--expect <version>] | --version
 //
 // Measures before AND after, and refuses to claim a delta it could not compute.
 // A grade that does not report what it changed is a guess wearing a number.
@@ -37,13 +40,40 @@ if args.count >= 2, args[1] == "contract" {
         print("  \(k.padding(toLength: 22, withPad: " ", startingAt: 0)) \(Walk.capabilities[k]!)")
     }
     print("\nNOT implemented — do not infer these from silence:")
-    print("  " + Walk.notImplemented.joined(separator: ", "))
+    for k in Walk.notImplemented.sorted() { print("  \(k)") }
+    exit(0)
+}
+
+// --- video subcommands -------------------------------------------------
+// New in 0.3.0. `walk` with two paths still grades a still, unchanged.
+
+if args.count >= 2, args[1] == "scan" {
+    await ScanCommand.run(args)
+    exit(0)
+}
+
+if args.count >= 2, args[1] == "segments" {
+    await SegmentsCommand.run(args)
+    exit(0)
+}
+
+if args.count >= 2, args[1] == "identifiers" {
+    // The taxonomy read off the runtime, not off a documentation page.
+    let ids = Classifier.supportedIdentifiers()
+    print("ClassifyImageRequest supports \(ids.count) identifiers (built in, no model file)")
+    let q = args.count >= 3 ? args[2].lowercased() : nil
+    for id in ids.sorted() where q == nil || id.lowercased().contains(q!) { print("  \(id)") }
     exit(0)
 }
 
 guard args.count >= 3 else {
     FileHandle.standardError.write("""
-        usage: walk <in> <out> [neutral|dramatic] [targetNits]
+        usage: walk scan <video> [--json] [--frames a-b] [--no-vision] [--fast]
+                                 [--sigma <k>] [--floor <fraction>]
+               walk segments <video> [--handles <sec>] [--lead <sec>] [--tail <sec>]
+                                 [--out <dir>] [--fps <n>] [--dry-run]
+               walk identifiers [substring]
+               walk <in> <out> [neutral|dramatic] [targetNits]
                walk --version
                walk contract [--expect <version>]
 

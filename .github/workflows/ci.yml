@@ -9,15 +9,66 @@ on:
 
 jobs:
   build-and-verify:
-    runs-on: macos-15
+    # macos-26, NOT macos-15, and the change is load-bearing.
+    #
+    # 0.3.0 moved the platform floor to macOS 26 because the classic
+    # AVAssetReader path is deprecated on macOS 27 and its replacement,
+    # AVAssetReaderOutput.Provider, is @available(macOS 26.0, *). A macos-15
+    # runner ships an SDK that has neither the deprecation nor the replacement,
+    # so it cannot build this package at all.
+    #
+    # It also could not build 0.2.0: the v0.2.0 tag's own CI run (34698731947)
+    # FAILED on macos-15 / Xcode 16.4 / Swift 6.0 with "static property 'kernel'
+    # is not concurrency-safe", and the tag was cut anyway. The tag-vs-source
+    # check below therefore never ran on that release. Fixed in 0.3.0 with
+    # nonisolated(unsafe) on the kernel, and recorded here so the next person
+    # does not trust a green badge that was never green.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
       - name: Toolchain
-        run: swift --version
+        run: |
+          swift --version
+          xcodebuild -version
+          echo "SDK: $(xcrun --show-sdk-version)"
 
+      # Build ONCE, capturing the log, because the deprecation check below reads
+      # it. A second `swift build` would be incremental and emit no warnings at
+      # all, which would make the check pass by producing nothing — the exact
+      # failure mode this repository is about.
       - name: Build
-        run: swift build -c release
+        run: |
+          set -o pipefail
+          swift build -c release 2>&1 | tee /tmp/build.log
+
+      # There must be NO deprecation warnings from the reader or writer paths.
+      # This is the control that keeps Walk from drifting back onto the classic
+      # API by accident — the one thing 0.3.0 exists to prevent.
+      - name: No deprecated AVFoundation reader/writer API
+        run: |
+          # Match DIAGNOSTICS only, not the source snippets a diagnostic quotes.
+          # WalkKit's comments name every deprecated call deliberately, and the
+          # compiler prints surrounding source lines with each warning.
+          if grep -E "warning:.*(deprecated in macOS 27|deprecated: 27)" /tmp/build.log; then
+            echo "::error::a deprecated macOS 27 AVFoundation call is back in the build"
+            exit 1
+          fi
+          # And in the source, not only in the diagnostics.
+          #
+          # COMMENT LINES ARE EXCLUDED ON PURPOSE. WalkKit names every one of
+          # these deprecated calls in prose, because the comments explain what
+          # was replaced and why — a correct fix names the retired thing in
+          # order to forbid it. A keyword grep that cannot tell a comment from a
+          # call would fail on the documentation and pass on the defect.
+          HITS=$(grep -rnE "startReading\(|copyNextSampleBuffer|AVAssetWriterInputPixelBufferAdaptor|alwaysCopiesSampleData|\.startWriting\(" Sources/ App/ \
+                 | grep -vE ":[0-9]+:[[:space:]]*(//|\*|///)" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
+            echo "::error::deprecated reader/writer API found in source (outside a comment)"
+            exit 1
+          fi
+          echo "no deprecated reader/writer API in code"
 
       - name: Test
         run: swift test --build-system native
@@ -46,6 +97,40 @@ jobs:
             exit 1
           fi
           echo "correctly refused"
+
+      # Pixel 2.5.0 §8.5 is written against Walk 0.2.0. The contract is SUPPOSED
+      # to notice that and this step proves it does, by requiring the refusal.
+      # It is not a failure of Walk; it is Walk detecting a stale consumer.
+      - name: Contract — MUST flag the known stale consumer (Pixel 2.5.0 expects 0.2.0)
+        run: |
+          if .build/release/walk contract --expect 0.2.0; then
+            echo "::error::the contract accepted a consumer written against 0.2.0"
+            exit 1
+          fi
+          .build/release/walk contract --expect 0.2.0 || true
+          echo "correctly flagged — Pixel 2.5.0 must be re-verified against 0.3.0"
+
+      # Capabilities and notImplemented must stay disjoint, checked through the
+      # shipped binary rather than only in a unit test.
+      - name: Capability lists are disjoint at runtime
+        run: |
+          .build/release/walk contract > /tmp/contract.txt
+          cat /tmp/contract.txt
+          CAPS=$(sed -n '/^capabilities/,/^$/p' /tmp/contract.txt | awk 'NF==2 {print $1}' | sort)
+          NOT=$(sed -n '/^NOT implemented/,$p' /tmp/contract.txt | awk 'NF==1 && NR>1 {print $1}' | sort)
+          BOTH=$(comm -12 <(echo "$CAPS") <(echo "$NOT"))
+          if [ -n "$BOTH" ]; then
+            echo "::error::listed as both present and not implemented: $BOTH"
+            exit 1
+          fi
+          echo "disjoint"
+
+      # The app target must build. SwiftPM cannot produce a bundle, so this is
+      # the only thing that proves the SwiftUI target still compiles.
+      - name: Build the app
+        run: |
+          xcodebuild -project App/Walk.xcodeproj -scheme Walk -configuration Release \
+            CODE_SIGNING_ALLOWED=NO build
 
       # The tag must equal the version in source. This is the control that stops
       # a release being tagged v0.3.0 while the binary reports 0.2.0.

@@ -13,28 +13,50 @@ import Foundation
 /// specific Walk. `Contract.check(expecting:)` lets it FAIL LOUDLY rather than
 /// proceed on stale instructions.
 public enum Walk {
-    public static let version = "0.2.0"
+    public static let version = "0.3.0"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is
     /// describing something Walk does not do.
     public static let capabilities: [String: String] = [
-        "hlg.sdr.transform":  "0.1.0",  // BT.2100 inverse OETF + OOTF + BT.2020→709
-        "hlg.systemGamma":    "0.1.0",  // BT.2390 derivation from target nits
-        "grade.filmic":       "0.1.0",  // Hable tone map
-        "measure.mean":       "0.1.0",  // whole-image channel means, managed
-        "measure.meanRaw":    "0.1.0",  // unmanaged file values, CPU reduction
-        "measure.castCheck":  "0.1.0",  // channel-spread delta across a grade
-        "contract.version":   "0.2.0",  // this surface
+        "hlg.sdr.transform":     "0.1.0",  // BT.2100 inverse OETF + OOTF + BT.2020→709
+        "hlg.systemGamma":       "0.1.0",  // BT.2390 derivation from target nits
+        "grade.filmic":          "0.1.0",  // Hable tone map
+        "measure.mean":          "0.1.0",  // whole-image channel means, managed
+        "measure.meanRaw":       "0.1.0",  // unmanaged file values, CPU reduction
+        "measure.castCheck":     "0.1.0",  // channel-spread delta across a grade
+        "contract.version":      "0.2.0",  // this surface
+        "video.read":            "0.3.0",  // AVAssetReaderOutput.Provider, frame-exact addressing
+        "video.yPlane":          "0.3.0",  // 10-bit Y code statistics, left-aligned words
+        "video.scan":            "0.3.0",  // per-frame CIAreaAverage luminance time series
+        "video.detect":          "0.3.0",  // events from the clip's own statistics + a named floor
+        "video.segment":         "0.3.0",  // cut ranges with handles; shortfall reported, not clamped
+        "video.retime":          "0.3.0",  // exact integer-rational timestamp scaling
+        "video.write.reencode":  "0.3.0",  // HEVC Main10 + HLG, readback-verified frame count
+        "video.trim":            "0.3.0",  // a frame range out to its own file
+        "classify.vision":       "0.3.0",  // ClassifyImageRequest, 1303-identifier taxonomy, no model file
+        "colorspace.linear2020": "0.3.0",  // pinned extendedLinearITUR_2020 working space
+        "app.proofSheet":        "0.3.0",  // SwiftUI window that shows what the scan found
     ]
 
     /// What Walk explicitly does NOT do yet. Stated so a consumer cannot infer
     /// capability from silence — absence indistinguishable from success is the
     /// failure mode this factory measures most often.
     public static let notImplemented: [String] = [
-        "video.read", "video.write", "video.retime", "video.scan",
-        "classify.vision", "ingest.dump", "page.bestWorst",
-        "touchup", "trim", "app.drive",
+        // Open defect task #721. Every append() returns true, writer.status is
+        // completed, writer.error is nil, and the file is 22 frames short. Named
+        // here rather than left out, because a capability list that is silent
+        // about a known-broken path is the defect it is meant to prevent.
+        "video.write.passthrough",
+        // #495: audio was never read, retimed or written. A 60→30 retime with
+        // audio is a different problem and has not been attempted.
+        "video.audio",
+        "ingest.dump",      // #496's "go through my dump for me" — not built
+        "page.bestWorst",   // the best/worst page for stills — not built
+        "touchup",          // the quick corrections Lightroom does — not built
+        "app.drive",        // Pixel driving Affinity/Lightroom — Pixel's lane, unmeasured
+        "fcpxml.export",    // #493 names FCPXML as a handoff; untouched
+        "coreml.custom",    // #495: whether a custom .mlmodel compiles without Xcode is open
     ]
 
     public struct Check: Sendable {
