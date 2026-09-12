@@ -203,6 +203,30 @@ jobs:
       - name: README tool docs match the live tool schema
         run: ./.github/check-tool-docs.py .build/release/walk-mcp
 
+      # THE DOCTRINE IN THE `instructions` STRING. 0.4.1 served "It never
+      # renders a keep/pitch verdict — sorting and flagging is Walk's job,
+      # judgment is yours and the operator's" to every consumer on connect,
+      # ahead of every tool call, after decision #513 had reversed exactly that.
+      # A consumer told "never renders a verdict" does not ask for one, so the
+      # stale prose SUPPRESSED the feature. 0.5.0 corrected it in seven places
+      # and five of those nobody had found — by reading, because nothing here
+      # could tell them.
+      #
+      # Every other prose surface in this workflow already has a control. The
+      # most-read sentence the project owns had none. It does now, and it must
+      # PROVE IT CAN FAIL before it is trusted to pass: the selftest requires
+      # each failure mode — the retired sentence returning verbatim or
+      # re-wrapped, a band going unnamed, the forward question dropped, and the
+      # absence tie broken in EITHER direction.
+      - name: Doctrine check can fail
+        run: ./.github/check-doctrine.py --selftest
+
+      # QUOTED, because an unquoted " #513" starts a YAML comment and silently
+      # truncated this step's name to "Served instructions state" — a decision
+      # number vanishing out of the label of the step that enforces it.
+      - name: "Served instructions state #513's doctrine"
+        run: ./.github/check-doctrine.py .build/release/walk-mcp .build/release/walk
+
       # The app target must build. SwiftPM cannot produce a bundle, so this is
       # the only thing that proves the SwiftUI target still compiles.
       - name: Build the app
