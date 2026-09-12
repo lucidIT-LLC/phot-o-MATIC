@@ -1,5 +1,88 @@
 # Changelog
 
+## Unreleased — task #740: the numbers on the proof sheet now say what they mean
+
+**Four defects in one family: a number printed without the thing that makes it
+mean anything.** Nothing about the measurements changed. Every fix is to what
+the output SAYS about them.
+
+**`sigma` was one measurement printed twice, presented as two.** MEASURED on all
+13 candidates of clip 0012: `sigma` is exactly `relativeRise / robustSigma`, and
+`robustSigma` is ONE CONSTANT for the clip (2.50782e-04 here), so the ratio is
+39.87533 on every single row. Printed side by side with `rise`, a reader sees a
+raw value corroborated by a robust statistic; it is one instrument with a scale
+factor, and it ranks the clip identically. The column is kept — it is the only
+figure that compares ACROSS clips, which a bare percentage cannot — but the CLI
+sheet, the `--json` output, the MCP result (`detector.sigmaDerivation`) and the
+app's detail pane now state the derivation, and σ is off the app's cards
+entirely, where a thumbnail-scale tile has no room to explain it.
+`DetectorTests.sigmaIsRelativeRiseRescaledByOneConstantPerClip` asserts the
+identity, so the sentence the sheet prints can fail. Proven able to fail:
+squaring the rise in the derivation breaks it in two places.
+
+**`rise` never named its colour space, and that omission manufactured a false
+finding about the engine.** A reviewer measured frame 2347 at +6.2% on the native
+10-bit gamma-encoded Y plane, read `rise +36.030%`, could not reproduce it under
+any baseline, and correctly filed `rise` as not reproducible. Both measurements
+were right: `rise` is CIAreaAverage in PINNED LINEAR BT.2020, hers was the
+gamma-encoded Y-plane mean, and nothing in the output said so. The space is now
+named on the sheet, in the JSON (`scan.relativeRiseMeasuredIn`), in the
+`walk_scan` tool description and in the app. **And the line that was there was
+itself a wrong number in the same family:** it read "the CIContext default is
+ExtendedLinearSRGB and measures 4.2x less of the event". Decision #495's own
+figures say the default linear sRGB measures +36.34% against pinned BT.2020's
++36.03% — very slightly MORE, not 4.2x less. The 4.2x is the ratio to an 8-bit
+sRGB working space (+8.54%). A real figure attached to the wrong comparison, and
+a reader could have used it to convert between two numbers it does not relate.
+The linear-to-Y-plane ratio is not constant either — 36.03/6.02 on frame 2347,
+3.69/0.79 on frame 2388 — so the output now says no single multiplier converts
+them rather than offering one.
+
+**Inline images are an ordered, unlabelled sequence, and the order is not the
+candidate order.** A session rendered a proof sheet from them, renamed the files
+`f_01…f_13` and stated they were in card order; they were chronological, `f_01`
+was card 13, and thirteen verdicts landed on the wrong thirteen frames. Caught
+only because the reviewer SHA-256'd each file against the frame indices.
+MEASURED on the wire: `inlineImages.frames` comes back `[2388, 2367, 2372]`
+(confidence rank) while `candidates` starts `[1194, 1272, 1282, …]` (frame
+order). The mapping was already emitted; the note now says the orders differ,
+that the nth image is `frames[n]`, and not to renumber a rendered sheet 1..n.
+The written PNGs were never affected — they are named `_f<frame>.png`.
+
+**Classifier confidence is a rank and the app's filter turns it into a gate, so
+the gate now names its cost.** MEASURED: clip 0012 frame 1272 is a genuine
+distant bolt striking a far ridge through rain — frame 1271 is empty — and it
+scores 0.0044 with a Y max of 945, indistinguishable from a no-event frame. Any
+sane-looking floor throws it away and reports nothing missing. That is the honest
+limit on "classification beats luminance" (#504): it beats it on RANKING what you
+already have, not on RECALL. The slider stays, and it still starts at zero.
+
+### `walk-mcp --version` — the recorded regression did not reproduce
+
+#740 recorded that `--version` printed nothing on 0.5.0 where 0.4.1 printed a
+version, making `make install-mcp`'s success message report an empty version.
+MEASURED against the binary the task itself names — 1,009,096 bytes, 13:46,
+byte-identical to the release build: `--version` prints `0.5.0` and exits 0
+through a TTY, a pipe, a `$(…)` substitution, a file redirect and with stdin
+closed. The branch is untouched and nothing was changed to make it work.
+
+**What DOES reproduce is adjacent and is the same defect class.** `--help`, `-h`,
+an unknown flag and no arguments at all all printed nothing and exited 0. For no
+arguments that is correct — it is a stdio server whose caller is a host — but
+correct and crashed-on-startup were byte-identical from a prompt. So `--help`
+answers, a hand-run server identifies itself on stderr, and an unrecognized
+argument says it was ignored instead of being swallowed. stdout stays reserved
+for the protocol and the ignore-and-keep-running contract is unchanged.
+
+`make install-mcp` no longer echoes an unguarded `$(walk-mcp --version)`. It
+captures the version, fails if it is blank, and fails if it disagrees with the
+version declared in `Sources/WalkKit/Version.swift` — which also catches a stale
+copy, where the binary identifies itself perfectly well as the wrong build. All
+three paths proven: the happy one, a binary that prints nothing, and one that
+reports 0.4.1. It also now says plainly that a registered stdio server keeps
+running the old binary until the host restarts, which is how the operator came to
+believe he was still on 0.4.1.
+
 ## 0.5.0 — 2026-09-12
 
 **The MCP server told every consumer the opposite of the product's own

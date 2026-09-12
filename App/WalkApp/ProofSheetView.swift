@@ -170,6 +170,24 @@ struct ProofSheetView: View {
                 Text("— \(model.visibleMoments.count) of \(clip.moments.count) shown")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
+            // #740 DEFECT 4 — CONFIDENCE IS A RANK AND THIS CONTROL TURNS IT
+            // INTO A GATE, SO THE COST IS NAMED THE MOMENT IT IS NON-ZERO.
+            //
+            // MEASURED on clip 0012: frame 1272 is a genuine distant bolt
+            // striking a far ridge through rain — confirmed against frame 1271,
+            // which is empty — and it scores 0.0044. Its Y max of 945 is
+            // identical to no-event frames, so luminance missed it too; it
+            // reached the candidate list only because the trigger fired for an
+            // unrelated reason. Any sane-looking floor discards it. That is the
+            // honest limit on "classification beats luminance" (#504):
+            // classification beats it on RANKING what you already have, not on
+            // RECALL. The slider stays — it is the operator's — and it starts at
+            // zero, but it no longer hides what it costs.
+            if model.minimumLightning > 0 {
+                Text("A filter above zero is a gate on a number that is only reliable as a rank. On this clip a real distant strike scores 0.0044 with a peak indistinguishable from an empty frame — a floor of 0.05 throws it away and reports nothing missing.")
+                    .font(.caption2).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(14)
     }
@@ -294,8 +312,19 @@ private struct MomentCard: View {
                     Text(String(format: "%+.2f%%", moment.relativeRise * 100))
                         .font(.caption.monospaced()).foregroundStyle(.secondary)
                 }
+                // #740 DEFECT 1 — σ IS OFF THE CARD ON PURPOSE.
+                //
+                // It used to sit here, first in a row of metrics, directly under
+                // the rise percentage. sigma = relativeRise / robustSigma and
+                // robustSigma is ONE CONSTANT for the clip, so on a single
+                // clip's sheet σ is the percentage above it multiplied by a
+                // fixed number: it adds no information to this card and it reads
+                // as a second instrument agreeing with the first. A card at
+                // thumbnail scale has no room to explain a derivation, so the
+                // honest move is not to assert it here. It stays in the detail
+                // pane, where the derivation is stated next to it, and it is
+                // still in the JSON for cross-clip comparison.
                 HStack(spacing: 10) {
-                    metric("σ", String(format: "%.0f", moment.sigma))
                     if let y = moment.yMean { metric("Y~", String(format: "%.1f", y)) }
                     if let m = moment.yMax {
                         metric("peak", "\(m)\(moment.yClipped ? "!" : "")")
@@ -350,8 +379,8 @@ private struct MomentDetail: View {
                     row("luma, linear BT.2020", String(format: "%.6f", moment.ciLuma))
                     row("local baseline", String(format: "%.6f", moment.baseline))
                     row("delta", String(format: "%+.6f", moment.ciLuma - moment.baseline))
-                    row("relative rise", String(format: "%+.3f%%", moment.relativeRise * 100))
-                    row("sigma above baseline", String(format: "%.1f", moment.sigma))
+                    row("relative rise, linear BT.2020", String(format: "%+.3f%%", moment.relativeRise * 100))
+                    row("that rise ÷ the clip's robust σ", String(format: "%.1f", moment.sigma))
                     if let y = moment.yMean {
                         row("Y mean, 10-bit code (stride \(ProofSheetModel.appYPlaneStride))",
                             String(format: "%.2f", y))
@@ -374,6 +403,14 @@ private struct MomentDetail: View {
                 }
 
                 Text("These are the measurements under the verdict, not the verdict. Ranking by them is how the first scan of the storm clip lost two real strikes: luminance finds bright flashes, classification finds lightning.")
+                    .font(.caption2).foregroundStyle(.secondary)
+
+                // #740 DEFECTS 1 AND 2, AT THE ONE PLACE ON THE SHEET WITH ROOM
+                // TO STATE THEM. Both are cases of a number read without the
+                // thing that makes it mean anything: σ without its derivation
+                // reads as corroboration, and rise without its colour space
+                // reads as comparable to the Y-plane figure two rows below it.
+                Text("Two numbers above are easy to misread. The σ figure is that rise divided by one constant for the whole clip, so on this clip it is the rise line rescaled — the same ranking, not a second measurement agreeing with it; it earns its keep only when comparing candidates across different clips. And the rise is measured in pinned linear BT.2020 light, while Y mean and Y peak are gamma-encoded 10-bit code values: the two are different quantities and no single multiplier converts between them. On clip 0012, frame 2347 is +36.03% linear and +6.02% on the Y plane, while frame 2388 is +3.69% against +0.79%.")
                     .font(.caption2).foregroundStyle(.secondary)
 
                 Text("The Y mean above is sampled every \(ProofSheetModel.appYPlaneStride)th row and column so a folder scans in seconds. `walk scan` reads every pixel; use it when the exact code value matters.")

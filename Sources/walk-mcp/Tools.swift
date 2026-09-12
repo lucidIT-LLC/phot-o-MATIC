@@ -234,6 +234,14 @@ private func detectorJSON(_ d: EventDetector.Result) -> JSON {
         "candidatesBeforeMerge": .int(d.candidatesBeforeMerge),
         "scaleCollapsed": .bool(d.scaleCollapsed),
         "foundNothing": .bool(d.foundNothing),
+        // #740 DEFECT 1. sigma = relativeRise / robustSigma, and robustSigma is
+        // ONE CONSTANT for the clip — so per candidate the two fields carry the
+        // same ranking and the same information. A model reading `relativeRise`
+        // high AND `sigma` high concludes two measurements agree. They do not
+        // agree; one is the other rescaled. Reproduced on clip 0012: rise
+        // 18.483% / sigma 737.0 and rise 3.689% / sigma 147.1, both at exactly
+        // 1/2.508e-04. Stated here rather than left for a reader to derive.
+        "sigmaDerivation": .string("Each candidate's `sigma` is that candidate's `relativeRise` divided by this `robustSigma`. robustSigma is one constant for the whole clip, so within a clip `sigma` is `relativeRise` rescaled: identical ranking, no independent information, NOT a second measurement corroborating the first. It is useful only for comparing candidates across different clips."),
         "note": .string("threshold = max(statistical, floor). boundBy says which half decided, so a reader can tell whether the answer came from the clip or from the constant. scaleCollapsed means more than half the frames sat exactly on their local median, so the clip supplied no measurable noise scale. NOTE THE TWO SENSES OF THE WORD: the clip-level `verdict` string is the DETECTOR's — how many candidates cleared which threshold — and predates #513. The coaching verdict is in `coaching`. The detector field keeps its name and meaning so a 0.4.1 consumer is not broken."),
     ])
 }
@@ -421,6 +429,14 @@ private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int,
             "classified": .bool(r.classified),
             "missingIndices": .array(r.missingIndices.map { .int($0) }),
             "workingColorSpace": .string(VideoReader.workingColorSpaceName),
+            // #740 DEFECT 2. `relativeRise` never named its space, and a careful
+            // reviewer measuring the gamma-encoded Y plane correctly could not
+            // reproduce it and filed the engine as broken. Both figures were
+            // right; they are different quantities. Clip 0012 frame 2347 is
+            // +36.03% in this pinned linear space and +6.02% on the Y plane;
+            // frame 2388 is +3.69% here and +0.79% there — so the ratio is not
+            // even constant and no single multiplier converts between them.
+            "relativeRiseMeasuredIn": .string("\(VideoReader.workingColorSpaceName), pinned. `ciLuma`, `baseline`, `delta`, `relativeRise` and `relativeRisePercent` are all measured in this LINEAR space. `yMean` and `yMax` are gamma-encoded 10-bit Y-plane code values. The two are not comparable and no fixed factor converts between them: clip 0012 frame 2347 is +36.03% linear against +6.02% on the Y plane, and frame 2388 is +3.69% against +0.79%."),
         ]),
         "detector": detectorJSON(r.detection),
         "verdict": .string(r.verdict),
@@ -472,8 +488,14 @@ enum Tools {
         description: """
             Measure every frame of one video and return the candidate moments as \
             structured data: frame index, timecode, seconds, relative luminance \
-            rise over a local median baseline, that rise in the clip's own robust \
-            sigma, 10-bit Y-plane mean and max, Vision classifier confidences, and \
+            rise over a local median baseline measured in PINNED LINEAR BT.2020 \
+            light (`scan.relativeRiseMeasuredIn` names the space, and a \
+            gamma-encoded Y-plane measurement of the same event is a different, \
+            much smaller number that no fixed factor converts to), that same rise \
+            divided by the clip's one robust-sigma constant — a rescaling of the \
+            previous field and not a second measurement, see \
+            `detector.sigmaDerivation` — 10-bit Y-plane mean and max, Vision \
+            classifier confidences, and \
             a path to a written PNG of the frame. Reports the threshold it applied \
             and which half of it bound. "Nothing found" is returned as an answer, \
             not an empty result. Then RENDERS THE COACHING VERDICT over those \
@@ -508,7 +530,23 @@ enum Tools {
                     payload["inlineImages"] = .object([
                         "frames": .array(inline.frames.map { .int($0) }),
                         "base64Bytes": .int(inline.bytes),
-                        "note": .string("Ranked by lightning confidence. Every candidate also has a thumbnail path; read those instead when there are many."),
+                        // #740 DEFECT 3 — THE THUMBNAILS WERE NOT IN THE ORDER
+                        // THEY WERE READ AS BEING IN, AND THIRTEEN VERDICTS
+                        // LANDED ON THE WRONG THIRTEEN FRAMES.
+                        //
+                        // A session rendered a proof sheet from these images,
+                        // renamed them f_01…f_13, and stated they were in card
+                        // order. They were in chronological order: f_01 was
+                        // card 13. Caught only because the reviewer SHA-256'd
+                        // each file against the frame indices.
+                        //
+                        // Inline images are an ORDERED, UNLABELLED sequence —
+                        // nothing in the image itself says which frame it is —
+                        // and their order is confidence rank, which is NOT the
+                        // order of the `candidates` array. `frames` is the
+                        // mapping and it is positional. Say so, rather than
+                        // leaving the correspondence to be assumed.
+                        "note": .string("ORDER MATTERS AND IT IS NOT THE CANDIDATE ORDER. These images are ranked by lightning confidence, descending; the `candidates` array is in frame order. The nth image is `frames[n]` — use that mapping, never the position in `candidates`, and never a number you assigned yourself. If you render a sheet from these, label every cell with its frame index from `frames` and do not renumber them 1..n: a renumbered sheet has already produced thirteen verdicts on the wrong thirteen frames. Every candidate also carries a `thumbnail` file path whose filename ends in _f<frame>.png, which is self-labelling; prefer those when there are many."),
                     ])
                 }
                 return .ok(.object(payload), images: inline.images)

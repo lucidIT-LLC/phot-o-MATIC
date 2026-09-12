@@ -219,3 +219,68 @@ private let fd6094 = CMTimeMake(value: 1001, timescale: 60000)
                 "\(ts)/\(val) -> \(fps) fps should be \(expect.0)/\(expect.1), got \(n)/\(d)")
     }
 }
+
+// MARK: - task #740: the sigma column is not a second measurement
+
+/// TASK #740 DEFECT 1, MECHANIZED. The proof sheet now STATES in its own output
+/// that `sigma` is `relativeRise` divided by one per-clip constant, so the sheet
+/// makes a claim about the engine and that claim must be able to fail.
+///
+/// The defect it records: rise and sigma were printed side by side, which reads
+/// as a raw value corroborated by a robust statistic. Within one clip it is the
+/// same number twice. Reproduced on this repository's own README sample output
+/// for clip 0012, robustSigma 2.508e-04:
+///   frame 2334   rise +18.483%   sigma 737.0
+///   frame 2388   rise  +3.689%   sigma 147.1
+/// Both are rise x 39.87, and 39.87 is 1/2.508e-04.
+///
+/// If someone later re-derives sigma from an independent dispersion — which is
+/// the other fix #740 sanctions — this test fails, and the sentence the sheet
+/// prints has to be rewritten with it. That is the point of it.
+@Test func sigmaIsRelativeRiseRescaledByOneConstantPerClip() {
+    // Three events of DIFFERENT sizes, so a constant rise-to-sigma ratio is a
+    // real finding about the derivation rather than an artifact of one point.
+    //
+    // EVERY frame carries noise, and that is load-bearing: the first version of
+    // this fixture perturbed one frame in seven, which left more than half the
+    // series sitting exactly on its own local median. The MAD collapsed to zero,
+    // robustSigma came back zero, and EventDetector correctly reported every
+    // sigma as .infinity — so the test failed for a reason that had nothing to
+    // do with what it measures. The assertions below are unchanged from that
+    // run; only the series was wrong.
+    var values = [Double]()
+    var seed: UInt64 = 0x5DEECE66D
+    for _ in 0..<420 {
+        seed = seed &* 6364136223846793005 &+ 1442695040888963407
+        let u = Double(seed >> 11) / Double(1 << 53)          // [0,1)
+        values.append(0.4 * (1.0 + (u - 0.5) * 0.00002))      // +/-0.001% floor
+    }
+    values[80] *= 1.05      // +5%
+    values[200] *= 1.02     // +2%
+    values[320] *= 1.11     // +11%
+
+    let r = EventDetector().detect(values: values)
+    #expect(r.robustSigma > 0, "the series must carry a measurable scale for this to be a fair test")
+    #expect(r.events.count >= 2, "need several events of different magnitudes")
+
+    for e in r.events {
+        let derived = e.relativeRise / r.robustSigma
+        #expect(abs(e.sigma - derived) <= max(1e-9, abs(derived) * 1e-12),
+                "sigma must be exactly relativeRise / robustSigma — frame \(e.index) reports \(e.sigma) against \(derived)")
+    }
+
+    // And the consequence that makes it a reporting defect rather than a
+    // curiosity: one constant divides every row, so the ratio is identical
+    // across events and the two columns rank the clip in exactly the same order.
+    let ratios = r.events.map { $0.sigma / ($0.relativeRise * 100) }
+    if let first = ratios.first {
+        for ratio in ratios {
+            #expect(abs(ratio - first) <= abs(first) * 1e-9,
+                    "every row must share one rise-to-sigma ratio; found \(ratios)")
+        }
+    }
+    let byRise = r.events.sorted { $0.relativeRise > $1.relativeRise }.map(\.index)
+    let bySigma = r.events.sorted { $0.sigma > $1.sigma }.map(\.index)
+    #expect(byRise == bySigma,
+            "ranking by sigma must be identical to ranking by rise; if it ever is not, sigma has become an independent measurement and the proof sheet's printed text is wrong")
+}

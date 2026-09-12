@@ -155,7 +155,31 @@ enum ScanCommand {
                      info.bitDepth.map(String.init) ?? "?", info.fps, info.seconds,
                      info.estimatedFrameCount, info.estimatedDataRateMbps))
         print("colour        primaries \(info.colorPrimaries ?? "?")  transfer \(info.transferFunction ?? "?")  matrix \(info.yCbCrMatrix ?? "?")\(info.isHLGBT2020 ? "   [HLG BT.2020]" : "")")
-        print("working space \(VideoReader.workingColorSpaceName)  (pinned; the CIContext default is ExtendedLinearSRGB and measures 4.2x less of the event)")
+        // TASK #740 DEFECT 2 — `rise` NEVER NAMED ITS SPACE, AND THAT OMISSION
+        // MANUFACTURED A FALSE FINDING ABOUT THE ENGINE.
+        //
+        // A reviewer measured frame 2347 of clip 0012 at +6.2% on the native
+        // 10-bit gamma-encoded Y plane, read `rise +36.030%` here, could not
+        // reproduce it under any baseline, and correctly wrote down that `rise`
+        // was not reproducible. Both measurements were right. They are different
+        // quantities: `rise` is CIAreaAverage in PINNED LINEAR BT.2020 light,
+        // hers was the gamma-encoded Y-plane mean. Nothing in the output said so.
+        //
+        // THE LINE THIS REPLACES WAS ALSO WRONG, and in the same family. It read
+        // "the CIContext default is ExtendedLinearSRGB and measures 4.2x less of
+        // the event". Decision #495's own figures say otherwise: the same event
+        // measures +36.03% in pinned linear BT.2020, +36.34% in DEFAULT linear
+        // sRGB — very slightly MORE, not 4.2x less — and +8.54% in an 8-bit sRGB
+        // working space, which is where the 4.2x actually came from. The figure
+        // was real and was attached to the wrong comparison, so a reader could
+        // have used it to convert between two numbers it does not relate.
+        print("working space \(VideoReader.workingColorSpaceName)  (pinned)")
+        print("              The luma / base / delta / rise columns below are measured IN THIS SPACE.")
+        print("              A gamma-encoded 10-bit Y-plane measurement of the same event is a DIFFERENT")
+        print("              and much smaller number, and NOT by a fixed factor: clip 0012 frame 2347 is")
+        print("              +36.03% here and +6.02% on the Y plane; frame 2388 is +3.69% here and +0.79%")
+        print("              there. The Ymean and Ymax columns ARE Y-plane code values — they are not")
+        print("              comparable with rise, and no single multiplier converts between them.")
     }
 
     static func printText(reader: VideoReader, series: LumaSeries,
@@ -172,6 +196,26 @@ enum ScanCommand {
                      EventDetector.Options().sigmaMultiple, result.floorThreshold * 100,
                      result.boundBy.rawValue))
         print(String(format: "robust sigma  %.6g of relative rise (MAD-derived)", result.robustSigma))
+        // TASK #740 DEFECT 1 — `sigma` IS NOT A SECOND MEASUREMENT AND THE TABLE
+        // PRESENTED IT AS ONE.
+        //
+        // EventDetector: sigma = relativeRise / robustSigma, and robustSigma is
+        // ONE CONSTANT FOR THE WHOLE CLIP. So within a clip the sigma column is
+        // the rise column multiplied by 1/robustSigma — identical ranking, zero
+        // independent information. Reproduced on this repository's own README
+        // sample output, which is clip 0012 at robustSigma 2.508e-04:
+        //   frame 2334   rise +18.483%   sigma 737.0   18.483 x 39.87 = 737.1
+        //   frame 2388   rise  +3.689%   sigma 147.1    3.689 x 39.87 = 147.1
+        // Printed side by side, a reader sees a raw value corroborated by a
+        // robust statistic. It is one instrument reported twice. The column is
+        // kept because it is the only figure that compares ACROSS clips, where a
+        // bare percentage does not — but the output now says what it is rather
+        // than leaving a reviewer to derive it. `DetectorTests` asserts the
+        // identity so this statement can fail if the derivation ever changes.
+        print("              The sigma column below is rise DIVIDED BY that one constant. One constant for")
+        print("              the whole clip, so within this clip sigma is the rise column rescaled: the same")
+        print("              ranking, no second opinion. It is there to compare candidates across clips.")
+        print("              Two columns side by side read as two instruments agreeing. These are one twice.")
         print("result        \(result.verdict)")
         guard !findings.isEmpty else {
             print("")
@@ -281,6 +325,14 @@ enum ScanCommand {
         s += "\"yCbCrMatrix\": \(i.yCbCrMatrix.map { "\"\($0)\"" } ?? "null"), "
         s += "\"isHLGBT2020\": \(i.isHLGBT2020) },\n"
         s += "  \"workingColorSpace\": \"\(VideoReader.workingColorSpaceName)\",\n"
+        // #740 DEFECTS 1 AND 2, FOR THE MACHINE READER. A model or script reading
+        // this JSON has no header text to warn it, and it is the consumer most
+        // likely to treat `sigma` as corroboration of `relativeRise` or to compare
+        // `relativeRise` against a Y-plane figure. Both are additive string fields;
+        // no existing field changed name, type or shape, so a 0.5.0 consumer is
+        // unaffected.
+        s += "  \"relativeRiseMeasuredIn\": \"\(VideoReader.workingColorSpaceName), pinned. This is NOT the gamma-encoded 10-bit Y plane that yMean and yMax report, and no fixed factor converts between them.\",\n"
+        s += "  \"sigmaDerivation\": \"sigma = relativeRise / detector.robustSigma. robustSigma is one constant for the whole clip, so within a clip sigma is relativeRise rescaled: identical ranking, no independent information. It is for comparing across clips and is not a second measurement.\",\n"
         s += String(format: "  \"scan\": { \"framesDecoded\": %d, \"wallSeconds\": %.6f, \"framesPerSecond\": %.3f, \"ciMillisecondsPerFrame\": %.4f, \"missingIndices\": %@ },\n",
                     series.decodedFrames, series.wallSeconds, series.framesPerSecond,
                     series.ciMillisecondsPerFrame,

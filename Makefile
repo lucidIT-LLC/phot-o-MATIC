@@ -64,11 +64,50 @@ mcp-check: release
 # and WALK_MCP_LOG to capture the exchange. See mcp-handshake.sh.
 BINDIR := $(HOME)/.local/bin
 
+# #740: THE SUCCESS MESSAGE MUST NOT BE ABLE TO OMIT THE ONE FACT IT EXISTS TO
+# CONVEY. This target used to end with
+#     @echo "walk-mcp $$($(BINDIR)/walk-mcp --version) installed at ..."
+# an unguarded command substitution. A binary that could not identify itself
+# printed "walk-mcp  installed at ..." and the install still reported SUCCESS, at
+# exactly the moment the operator needs to know which build he just staged. That
+# is what task #740 recorded, and it is the same shape as everything else in that
+# task: a silent reading read as a fine one.
+#
+# The version is now captured, checked for emptiness, AND checked against the
+# version declared in Sources/WalkKit/Version.swift — which also catches a stale
+# copy, where the binary identifies itself perfectly well as the wrong build.
+# Any of the three failures fails the target instead of printing a blank.
 install-mcp: release
 	mkdir -p $(BINDIR)
 	cp $(MCP) $(BINDIR)/walk-mcp
+	@set -e; \
+	 installed=$$($(BINDIR)/walk-mcp --version 2>/dev/null || true); \
+	 declared=$$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift); \
+	 if [ -z "$$declared" ]; then \
+	   echo "install-mcp FAILED: cannot read Walk.version out of Sources/WalkKit/Version.swift," >&2; \
+	   echo "so there is nothing to check the installed binary against." >&2; \
+	   exit 1; \
+	 fi; \
+	 if [ -z "$$installed" ]; then \
+	   echo "install-mcp FAILED: $(BINDIR)/walk-mcp does not report a version." >&2; \
+	   echo "The copy succeeded, but a binary that cannot identify itself makes this" >&2; \
+	   echo "message a claim rather than a fact, so the target fails instead." >&2; \
+	   exit 1; \
+	 fi; \
+	 if [ "$$installed" != "$$declared" ]; then \
+	   echo "install-mcp FAILED: the installed binary reports $$installed and this source" >&2; \
+	   echo "tree declares $$declared. Something staged a build other than this one." >&2; \
+	   exit 1; \
+	 fi; \
+	 echo ""; \
+	 echo "walk-mcp $$installed installed at $(BINDIR)/walk-mcp"
 	@echo ""
-	@echo "walk-mcp $$($(BINDIR)/walk-mcp --version) installed at $(BINDIR)/walk-mcp"
+	@echo "A REGISTERED SERVER IS ALREADY RUNNING FROM THE OLD BINARY."
+	@echo "  A stdio MCP server is spawned once at session start, so this file does not"
+	@echo "  take effect until the host restarts. Until then walk_contract correctly"
+	@echo "  reports the OLD version — that is the running process answering honestly,"
+	@echo "  not a failed install. #740: the operator learned he was still on 0.4.1"
+	@echo "  exactly this way."
 	@echo ""
 	@echo "Register it with Claude Code:"
 	@echo "  claude mcp add --scope user --transport stdio walk $(BINDIR)/walk-mcp"

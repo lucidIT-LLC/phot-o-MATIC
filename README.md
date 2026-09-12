@@ -95,8 +95,17 @@ walk contract [--expect <version>]
 walk --version
 
 walk-mcp                        # MCP server over stdio; a host launches it
+walk-mcp --version              # prints the version and exits
+walk-mcp --help                 # says it is a server, not a command
 walk-mcp --selftest             # names its transport, protocols and tools
 ```
+
+Run `walk-mcp` by hand with no host and it reads end-of-file and exits, printing
+nothing on stdout — stdout belongs to the protocol. That is success, and it used
+to be indistinguishable from a crash, so a hand-run server now identifies itself
+on stderr and `--help` explains what it is. An unrecognized argument is still
+ignored rather than fatal — a host passing a stray flag must not lose its server
+— but it now says on stderr that it was ignored.
 
 ### The MCP tools
 
@@ -140,10 +149,20 @@ $ walk scan DJI_20260912051637_0012_D.MP4
 file          DJI_20260912051637_0012_D.MP4
 video         3840 x 2160  (8.3 MP)  hvc1  10bit  59.94 fps  46.23 s  ~2771 frames  130.0 Mbit/s
 colour        primaries ITU_R_2020  transfer ITU_R_2100_HLG  matrix ITU_R_2020   [HLG BT.2020]
-working space kCGColorSpaceExtendedLinearITUR_2020  (pinned; the CIContext default is
-              ExtendedLinearSRGB and measures 4.2x less of the event)
-scan          2771 frames decoded in 29.174 s = 95.0 fps   CIAreaAverage 1.983 ms/frame
+working space kCGColorSpaceExtendedLinearITUR_2020  (pinned)
+              The luma / base / delta / rise columns below are measured IN THIS SPACE.
+              A gamma-encoded 10-bit Y-plane measurement of the same event is a DIFFERENT
+              and much smaller number, and NOT by a fixed factor: clip 0012 frame 2347 is
+              +36.03% here and +6.02% on the Y plane; frame 2388 is +3.69% here and +0.79%
+              there. The Ymean and Ymax columns ARE Y-plane code values — they are not
+              comparable with rise, and no single multiplier converts between them.
+scan          2771 frames decoded in 29.993 s = 92.4 fps   CIAreaAverage 2.024 ms/frame
 threshold     1.0000% relative rise   (statistics 0.3009% at 12σ, floor 1.0000%, floor bound)
+robust sigma  0.000250782 of relative rise (MAD-derived)
+              The sigma column below is rise DIVIDED BY that one constant. One constant for
+              the whole clip, so within this clip sigma is the rise column rescaled: the same
+              ranking, no second opinion. It is there to compare candidates across clips.
+              Two columns side by side read as two instruments agreeing. These are one twice.
 result        13 candidates over 2771 frames at a 1.000% threshold (floor bound)
 
   frame    timecode      time      luma      base     delta      rise      sigma   Ymean    Ymax  lightning  storm
@@ -299,7 +318,7 @@ threshold it was tested against.
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 79 tests
+make test                     # 80 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
