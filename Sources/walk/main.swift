@@ -11,9 +11,43 @@ import WalkKit
 // A grade that does not report what it changed is a guess wearing a number.
 
 let args = CommandLine.arguments
+
+// --- version and contract surface ---------------------------------------
+// A consumer written against a specific Walk can verify it here and FAIL
+// rather than proceed on stale instructions.
+
+if args.count >= 2, args[1] == "--version" {
+    print(Walk.version)
+    exit(0)
+}
+
+if args.count >= 2, args[1] == "contract" {
+    // walk contract                      -> print the contract
+    // walk contract --expect <version>   -> exit 0 on match, 1 on mismatch
+    if args.count >= 4, args[2] == "--expect" {
+        let c = Walk.check(expecting: args[3])
+        print("walk       \(c.actual)")
+        print("expected   \(c.expected)")
+        print("result     \(c.ok ? "OK" : "MISMATCH") — \(c.detail)")
+        exit(c.ok ? 0 : 1)
+    }
+    print("walk \(Walk.version)")
+    print("\ncapabilities (capability = version introduced):")
+    for k in Walk.capabilities.keys.sorted() {
+        print("  \(k.padding(toLength: 22, withPad: " ", startingAt: 0)) \(Walk.capabilities[k]!)")
+    }
+    print("\nNOT implemented — do not infer these from silence:")
+    print("  " + Walk.notImplemented.joined(separator: ", "))
+    exit(0)
+}
+
 guard args.count >= 3 else {
-    FileHandle.standardError.write(
-        "usage: walk <in> <out> [neutral|dramatic] [targetNits]\n".data(using: .utf8)!)
+    FileHandle.standardError.write("""
+        usage: walk <in> <out> [neutral|dramatic] [targetNits]
+               walk --version
+               walk contract [--expect <version>]
+
+        """.data(using: .utf8)!)
     exit(2)
 }
 let inURL = URL(fileURLWithPath: args[1])

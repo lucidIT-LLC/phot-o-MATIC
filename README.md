@@ -1,6 +1,6 @@
 # Walk
 
-**An on-device photographic and video engine for macOS.** Measurement first,
+**An on-device photographic engine for macOS.** Measurement first,
 grading second, no third-party application required.
 
 Walk is the engine. [Pixel](https://github.com/lucidIT-LLC/o-matic-studio) is the

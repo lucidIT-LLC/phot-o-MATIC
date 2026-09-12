@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Build
+        run: swift build -c release
+
+      - name: Test
+        run: swift test --build-system native
+
+      # The version contract is a runtime control, so CI exercises it as one.
+      # It must PASS on its own version and FAIL on every other — a check that
+      # has only ever passed is not a check.
+      - name: Contract — matches its own version
+        run: |
+          V=$(.build/release/walk --version)
+          echo "walk reports $V"
+          .build/release/walk contract --expect "$V"
+
+      - name: Contract — MUST reject a newer consumer
+        run: |
+          if .build/release/walk contract --expect 9.9.9; then
+            echo "::error::contract accepted a version it should have refused"
+            exit 1
+          fi
+          echo "correctly refused"
+
+      - name: Contract — MUST reject garbage
+        run: |
+          if .build/release/walk contract --expect banana; then
+            echo "::error::contract accepted an unparseable version"
+            exit 1
+          fi
+          echo "correctly refused"
+
+      # The tag must equal the version in source. This is the control that stops
+      # a release being tagged v0.3.0 while the binary reports 0.2.0.
+      - name: Tag matches Walk.version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          SRC=$(.build/release/walk --version)
+          echo "tag=$TAG source=$SRC"
+          [ "$TAG" = "$SRC" ] || { echo "::error::tag $TAG != source $SRC"; exit 1; }
