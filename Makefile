@@ -51,6 +51,7 @@ mcp: release
 
 mcp-check: release
 	./.github/mcp-handshake.sh $(MCP)
+	./.github/check-tool-docs.py $(MCP)
 
 # REGISTRATION IS THE OPERATOR'S TO RUN, not this Makefile's to do behind him.
 # `claude mcp add --scope user` writes to ~/.claude.json, which is host

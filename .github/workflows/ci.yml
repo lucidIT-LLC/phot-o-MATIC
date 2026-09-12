@@ -172,6 +172,14 @@ jobs:
       - name: walk-mcp answers both protocol eras and refuses what it must
         run: ./.github/mcp-handshake.sh .build/release/walk-mcp
 
+      # The README's tool block against the LIVE schema, both directions: a
+      # parameter the server takes and nobody documented, and a parameter the
+      # README names that no tool has. Same defect class as everything else this
+      # workflow guards — prose describing a mechanism that has moved — and it
+      # is the copy a consumer reads first.
+      - name: README tool docs match the live tool schema
+        run: ./.github/check-tool-docs.py .build/release/walk-mcp
+
       # The app target must build. SwiftPM cannot produce a bundle, so this is
       # the only thing that proves the SwiftUI target still compiles.
       - name: Build the app

@@ -56,6 +56,18 @@ non-storm set. The ranking kept the right frames.
   scan* from *nothing found*. Conflating those is how "we found nothing" comes
   to mean "we did not look".
 
+### And one more control, because the README is what a consumer reads first
+
+`.github/check-tool-docs.py` compares the README's tool block against the LIVE
+`tools/list` schema, both directions: a parameter the server takes that nobody
+documented, and a parameter the README names that no tool has. Currently
+5 tools, 45 parameters, none undocumented and none invented — and both failure
+directions were proven before it was accepted.
+
+The same defect class as everything else in this workflow. A README documenting
+`--frames` after it became `from_frame` is a retired KB number cited as live
+authority, with a smaller blast radius and a wider audience.
+
 ### Still true, and still the caveat that matters more than the result
 
 54,665 bytes is about 13.7k tokens for 8 clips of 4K footage. Better, not
