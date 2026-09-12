@@ -525,7 +525,20 @@ enum Tools {
                 opts.thumbnailDirectory = nil
                 if let k = a["sigma"]?.doubleValue { opts.detector.sigmaMultiple = k }
                 if let f = a["floor"]?.doubleValue { opts.detector.minimumRelativeRise = f }
-                if let lo = a["from_frame"]?.intValue ?? nil, let hi = a["to_frame"]?.intValue, hi > lo {
+                // REFUSE A MALFORMED RANGE RATHER THAN IGNORE IT, the way
+                // walk_scan does. The first version of this silently dropped the
+                // range when to_frame was missing or not greater than from_frame
+                // — and then scanned the whole clip, which is a different answer
+                // to a different question, returned without comment. A caller
+                // who asked for frames 2300 onward and got the entire file has
+                // no way to tell.
+                let sFrom = a["from_frame"]?.intValue
+                let sTo = a["to_frame"]?.intValue
+                if sFrom != nil || sTo != nil {
+                    let lo = sFrom ?? 0
+                    guard let hi = sTo, hi > lo else {
+                        throw ToolError("a frame range needs to_frame greater than from_frame (to_frame is exclusive)")
+                    }
                     opts.frames = lo..<hi
                 }
                 let both = a["handles"]?.doubleValue ?? 1.0

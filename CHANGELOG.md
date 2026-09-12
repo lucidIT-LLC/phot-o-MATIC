@@ -122,6 +122,14 @@ The same defect class as everything else in this workflow. A README documenting
 `--frames` after it became `from_frame` is a retired KB number cited as live
 authority, with a smaller blast radius and a wider audience.
 
+### One more silent wrong answer, removed
+
+`walk_segments` dropped a frame range when `to_frame` was missing or not greater
+than `from_frame` — and then scanned the whole clip. A caller who asked for
+frames 2300 onward and got the entire file back had no way to tell: a different
+answer to a different question, returned without comment. It now refuses, the
+way `walk_scan` already did. Both refusals measured.
+
 ### Still true, and still the caveat that matters more than the result
 
 54,665 bytes is about 13.7k tokens for 8 clips of 4K footage. Better, not
