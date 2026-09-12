@@ -59,6 +59,24 @@ if args.count >= 2, args[1] == "contract" {
             print("      NO REASON RECORDED — this is a contract defect; see ContractTests")
         }
     }
+    // WHETHER A VERDICT CAN BE RENDERED ON THIS HOST RIGHT NOW, which is a
+    // different question from whether this build supports one. #513 named the
+    // gap: app.proofSheet was declared with no statement that the sheet does not
+    // judge, so a consumer could read a capability list and still not know that
+    // nothing judges anything.
+    let coach = Coaching.Coach()
+    print("\ncoaching verdict (#513) — three bands, each with a reason and a next-flight lesson:")
+    for band in Coaching.Band.allCases.sorted(by: { $0.order < $1.order }) {
+        print("  \(band.label)")
+        for line in wrap(band.promise, width: 84) { print("      \(line)") }
+    }
+    print("\n  rendered on this host: \(coach.isReady ? "YES" : "NO")")
+    if let why = coach.unavailableReason {
+        for line in wrap(why, width: 84) { print("      \(line)") }
+        for place in coach.resolution?.searched ?? [] { print("      looked in \(place)") }
+    } else if let c = coach.criteria {
+        print("      criteria \(c.header.version) by \(c.header.owner), \(c.rules.count) rules — \(c.source)")
+    }
     exit(0)
 }
 
@@ -87,7 +105,7 @@ if args.count >= 2, args[1] == "identifiers" {
 guard args.count >= 3 else {
     FileHandle.standardError.write("""
         usage: walk scan <video> [--json] [--frames a-b] [--no-vision] [--fast]
-                                 [--sigma <k>] [--floor <fraction>]
+                                 [--sigma <k>] [--floor <fraction>] [--criteria <file>]
                walk segments <video> [--handles <sec>] [--lead <sec>] [--tail <sec>]
                                  [--out <dir>] [--fps <n>] [--dry-run]
                walk identifiers [substring]

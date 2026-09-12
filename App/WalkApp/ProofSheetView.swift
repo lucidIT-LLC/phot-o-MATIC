@@ -125,7 +125,7 @@ struct ProofSheetView: View {
             ContentUnavailableView {
                 Label("Walk", systemImage: "bolt.horizontal.circle")
             } description: {
-                Text("Open a video or a folder to see what is in it.\nWalk measures every frame and shows you the moments — it does not decide which ones are worth keeping.")
+                Text("Open a video or a folder. Walk measures every frame, then coaches the moments it finds — what is sellable as shot, what has potential with one change, and what is not worth the trouble. The verdict needs a criteria file; without one it says so rather than pretending.")
                     .multilineTextAlignment(.center)
             } actions: {
                 Button("Open…") { importing = true }
@@ -159,6 +159,7 @@ struct ProofSheetView: View {
                 Text("\(clip.missingIndices.count) frame indices were never delivered by the decoder")
                     .font(.caption).foregroundStyle(.orange)
             }
+            CoachingPanel(report: clip.coaching)
             HStack(spacing: 8) {
                 Text("show lightning ≥").font(.caption2).foregroundStyle(.secondary)
                 Slider(value: Binding(get: { model.minimumLightning },
@@ -185,6 +186,83 @@ struct ProofSheetView: View {
                 .multilineTextAlignment(.center).frame(maxWidth: 420)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - the coaching verdict (#513)
+
+/// The sheet's headline claim, and the one #513 replaced.
+///
+/// 0.4.1 shipped "Every frame measured; none judged." as the product's promise.
+/// It was true and it was the wrong promise: a light meter measures, a coach
+/// judges, says why, and asks where you were going. This panel therefore leads
+/// with the VERDICT — and when there is none, it leads with the absence and the
+/// reason, which is the one thing the old sheet never did.
+private struct CoachingPanel: View {
+    let report: Coaching.Report
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: report.available ? "checkmark.seal" : "questionmark.circle")
+                    .foregroundStyle(report.available ? .green : .orange)
+                Text(report.available ? "COACHING VERDICT" : "NO COACHING VERDICT")
+                    .font(.caption.weight(.semibold))
+                Text(report.headline).font(.caption).foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            if report.available {
+                ForEach(Coaching.Band.allCases.sorted { $0.order < $1.order }, id: \.self) { band in
+                    let group = report.verdicts(in: band)
+                    if !group.isEmpty {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(band.label) — \(group.count)")
+                                .font(.caption2.weight(.semibold))
+                            ForEach(group, id: \.frame) { v in
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("frame \(v.frame) · \(v.reason)").font(.caption2)
+                                    if let change = v.change {
+                                        Text("with this: \(change)").font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    // REQUIRED, NOT DECORATION — #513.
+                                    if let q = v.forwardQuestion {
+                                        Text(q).font(.caption2.italic())
+                                    }
+                                    Text("next flight: \(v.nextFlight)").font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text("rule \(v.ruleID) — \(v.origin)").font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                        }
+                    }
+                }
+                if !report.uncovered.isEmpty {
+                    Text("\(report.uncovered.count) candidate\(report.uncovered.count == 1 ? "" : "s") no rule covered — left unjudged rather than banded")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+            } else {
+                Text(report.unavailableReason ?? "reason not recorded")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Coaching.Band.allCases.sorted { $0.order < $1.order }, id: \.self) { band in
+                    Text("\(band.label) — \(band.promise)")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            ForEach(report.lessons, id: \.id) { lesson in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(lesson.headline).font(.caption2.weight(.medium))
+                    Text(lesson.origin).font(.caption2).foregroundStyle(.tertiary)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -295,7 +373,7 @@ private struct MomentDetail: View {
                     }
                 }
 
-                Text("These are measurements and confidences. Walk does not decide whether this frame is worth keeping — that is yours, or Pixel's on the finals.")
+                Text("These are the measurements under the verdict, not the verdict. Ranking by them is how the first scan of the storm clip lost two real strikes: luminance finds bright flashes, classification finds lightning.")
                     .font(.caption2).foregroundStyle(.secondary)
 
                 Text("The Y mean above is sampled every \(ProofSheetModel.appYPlaneStride)th row and column so a folder scans in seconds. `walk scan` reads every pixel; use it when the exact code value matters.")

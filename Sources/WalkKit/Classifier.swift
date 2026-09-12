@@ -11,8 +11,13 @@ import Vision
 /// anyway. On clip 0012, frame 2347 returns lightning 0.3435 and frame 2348
 /// returns 0.0129: a 27x separation for nothing.
 ///
-/// WHAT THE CONFIDENCE IS NOT. It is a number to report, not a verdict. Walk
-/// sorts and flags; it never decides that a frame is or is not worth keeping.
+/// WHAT THE CONFIDENCE IS NOT. It is not a verdict, and this comment said so in
+/// the retired wording until 0.5.0 — "Walk sorts and flags; it never decides
+/// that a frame is or is not worth keeping" — which decision #513 reversed. Walk
+/// DOES decide now. What has not changed is that a confidence is not the
+/// decision: it is a measurement a criteria rule may read (#499), reported
+/// underneath the verdict as evidence for it. Ranking frames by this number is
+/// precisely the mistake #504 caught — see `Coaching.luminanceIsNotLightning`.
 public struct Classifier: Sendable {
 
     public struct Label: Sendable, Comparable {

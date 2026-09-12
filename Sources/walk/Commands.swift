@@ -44,13 +44,16 @@ enum ScanCommand {
         var fast = false
         var sigma: Double? = nil
         var floor: Double? = nil
+        /// Coaching criteria (#499). Absent falls back to WALK_CRITERIA and then
+        /// the installed default; absent everywhere is reported as absent.
+        var criteria: String? = nil
     }
 
     static func parse(_ argv: [String]) -> Args {
         guard argv.count >= 3 else {
             err("""
                 usage: walk scan <video> [--json] [--frames a-b] [--no-vision] [--fast]
-                                 [--sigma <k>] [--floor <fraction>]
+                                 [--sigma <k>] [--floor <fraction>] [--criteria <file>]
                 """)
         }
         var a = Args(path: argv[2])
@@ -71,6 +74,10 @@ enum ScanCommand {
                 i += 1; a.sigma = i < argv.count ? Double(argv[i]) : nil
             case "--floor":
                 i += 1; a.floor = i < argv.count ? Double(argv[i]) : nil
+            case "--criteria":
+                i += 1
+                guard i < argv.count else { err("--criteria wants a path to a criteria file") }
+                a.criteria = argv[i]
             default: err("unknown option \(argv[i])")
             }
             i += 1
@@ -106,9 +113,39 @@ enum ScanCommand {
                 findings.append(Finding(event: e, sample: series.sample(at: e.index), labels: labels))
             }
 
-            if a.json { printJSON(reader: reader, series: series, result: result, findings: findings) }
-            else { printText(reader: reader, series: series, result: result, findings: findings) }
+            // ONE coach, built from the same arguments, used by both printers.
+            // The judgment layer is not re-implemented here — the candidates go
+            // to WalkKit's coach exactly as the MCP server's do.
+            let coach = Coaching.Coach(explicit: a.criteria.map { URL(fileURLWithPath: $0) })
+            let candidates = findings.map { candidate($0, reader: reader) }
+            let coaching = coach.report(for: candidates)
+
+            if a.json {
+                printJSON(reader: reader, series: series, result: result,
+                          findings: findings, coach: coach, coaching: coaching)
+            } else {
+                printText(reader: reader, series: series, result: result,
+                          findings: findings, coaching: coaching)
+            }
         } catch { err("scan failed: \(error)") }
+    }
+
+    /// The CLI measured a clip its own way; this is the same values in the
+    /// shape the coach reads. No new measurement — every number comes out of the
+    /// event, the sample and the classifier result already computed above.
+    static func candidate(_ f: Finding, reader: VideoReader) -> ClipScan.Candidate {
+        let e = f.event
+        return ClipScan.Candidate(
+            frame: e.index, timecode: reader.timecode(ofFrame: e.index), time: e.time,
+            ciLuma: e.value, baseline: e.baseline, delta: e.delta,
+            relativeRise: e.relativeRise, sigma: e.sigma, mergedFrames: e.mergedFrames,
+            yMean: f.sample?.yMean, yMax: f.sample?.yMax,
+            yClipped: f.sample?.yClipped ?? false,
+            // nil, NOT an empty dictionary: --no-vision means unmeasured, and a
+            // rule reading a confidence must not fire on a false zero.
+            confidences: f.labels?.requested,
+            topLabels: f.labels?.top.map { (identifier: $0.identifier, confidence: $0.confidence) } ?? [],
+            classifyMilliseconds: f.labels?.milliseconds, thumbnail: nil)
     }
 
     static func printHeader(_ info: VideoInfo, reader: VideoReader) {
@@ -122,7 +159,8 @@ enum ScanCommand {
     }
 
     static func printText(reader: VideoReader, series: LumaSeries,
-                          result: EventDetector.Result, findings: [Finding]) {
+                          result: EventDetector.Result, findings: [Finding],
+                          coaching: Coaching.Report) {
         print(String(format: "scan          %d frames decoded in %.3f s = %.1f fps   CIAreaAverage %.3f ms/frame",
                      series.decodedFrames, series.wallSeconds, series.framesPerSecond,
                      series.ciMillisecondsPerFrame))
@@ -154,13 +192,82 @@ enum ScanCommand {
                          e.value, e.baseline, e.delta, e.relativeRise * 100, e.sigma,
                          y, ym, light, storm))
         }
+        printCoaching(coaching)
+    }
+
+    /// #513: the verdict is the product and the numbers above are the evidence
+    /// under it. This block replaced two lines that said the opposite — "Walk
+    /// sorts and flags; the keep/pitch judgment is the operator's or Pixel's" —
+    /// which was the standing doctrine until the ruling reversed it.
+    static func printCoaching(_ r: Coaching.Report) {
         print("")
-        print("Vision confidences are measurements, not verdicts. Walk sorts and flags;")
-        print("the keep/pitch judgment is the operator's or Pixel's.")
+        guard r.available else {
+            print("COACHING VERDICT  none rendered")
+            for line in wrap(r.unavailableReason ?? "reason not recorded", width: 86) {
+                print("  \(line)")
+            }
+            if !r.searched.isEmpty {
+                print("  looked in:")
+                for place in r.searched { print("    \(place)") }
+            }
+            print("")
+            print("  The bands a criteria set fills:")
+            for band in Coaching.Band.allCases.sorted(by: { $0.order < $1.order }) {
+                print("    \(band.label)")
+                for line in wrap(band.promise, width: 80) { print("      \(line)") }
+            }
+            printLessons(r)
+            return
+        }
+        print("COACHING VERDICT  \(r.headline)")
+        if let v = r.criteriaVersion, let owner = r.criteriaOwner {
+            print("  criteria \(v) by \(owner) — \(r.criteriaSource ?? "?")")
+        }
+        for band in Coaching.Band.allCases.sorted(by: { $0.order < $1.order }) {
+            let group = r.verdicts(in: band)
+            guard !group.isEmpty else { continue }
+            print("")
+            print("  \(band.label)")
+            for v in group {
+                print("    frame \(v.frame)  \(v.timecode)")
+                for line in wrap(v.reason, width: 78) { print("      \(line)") }
+                if let change = v.change {
+                    for line in wrap("WITH THIS: \(change)", width: 78) { print("      \(line)") }
+                }
+                // REQUIRED, NOT DECORATION — #513. It is the mechanism that
+                // keeps a photographer moving instead of having work sorted.
+                if let q = v.forwardQuestion { print("      \(q)") }
+                for line in wrap("NEXT FLIGHT: \(v.nextFlight)", width: 78) { print("      \(line)") }
+                for e in v.evidence {
+                    print(String(format: "      evidence  %@ = %.4f (rule required %@)",
+                                 e.measurement, e.measured, e.required))
+                }
+                print("      rule \(v.ruleID) — \(v.origin)")
+            }
+        }
+        if !r.uncovered.isEmpty {
+            print("")
+            print("  NOT JUDGED — no rule covered \(r.uncovered.count) candidate(s): "
+                  + r.uncovered.map(String.init).joined(separator: ", "))
+            print("    Left unjudged rather than banded, so a thin criteria set cannot")
+            print("    read as a complete verdict.")
+        }
+        for m in r.malformed { print("  MALFORMED VERDICT  \(m)") }
+        printLessons(r)
+    }
+
+    static func printLessons(_ r: Coaching.Report) {
+        for lesson in r.lessons {
+            print("")
+            for line in wrap(lesson.headline, width: 86) { print("  \(line)") }
+            for line in wrap(lesson.detail, width: 86) { print("    \(line)") }
+            print("    — \(lesson.origin)")
+        }
     }
 
     static func printJSON(reader: VideoReader, series: LumaSeries,
-                          result: EventDetector.Result, findings: [Finding]) {
+                          result: EventDetector.Result, findings: [Finding],
+                          coach: Coaching.Coach, coaching: Coaching.Report) {
         let i = reader.info
         var s = "{\n"
         s += "  \"walk\": \"\(Walk.version)\",\n"
@@ -204,7 +311,41 @@ enum ScanCommand {
             return o + " }"
         }.joined(separator: ",\n")
         s += "\n  ],\n"
-        s += "  \"note\": \"Confidences and luminance deltas are measurements. Walk does not render a keep/pitch verdict.\"\n"
+        s += "  \"coaching\": {\n"
+        s += "    \"available\": \(coaching.available),\n"
+        s += "    \"headline\": \"\(jsonEscape(coaching.headline))\",\n"
+        if let reason = coaching.unavailableReason {
+            s += "    \"reason\": \"\(jsonEscape(reason))\",\n"
+            s += "    \"searched\": [" + coaching.searched.map { "\"\(jsonEscape($0))\"" }.joined(separator: ", ") + "],\n"
+        }
+        s += "    \"bands\": [" + Coaching.Band.allCases.sorted { $0.order < $1.order }.map {
+            "{\"band\":\"\($0.rawValue)\",\"label\":\"\($0.label)\",\"namesOneChange\":\($0.requiresChange),\"asksForwardQuestion\":\($0.requiresForwardQuestion)}"
+        }.joined(separator: ",") + "],\n"
+        s += "    \"verdicts\": [\n"
+        s += coaching.verdicts.map { v -> String in
+            var o = "      { \"band\": \"\(v.band.rawValue)\", \"frame\": \(v.frame)"
+            o += ", \"reason\": \"\(jsonEscape(v.reason))\""
+            o += ", \"change\": " + (v.change.map { "\"\(jsonEscape($0))\"" } ?? "null")
+            o += ", \"forwardQuestion\": " + (v.forwardQuestion.map { "\"\(jsonEscape($0))\"" } ?? "null")
+            o += ", \"nextFlight\": \"\(jsonEscape(v.nextFlight))\""
+            o += ", \"rule\": \"\(jsonEscape(v.ruleID))\", \"origin\": \"\(jsonEscape(v.origin))\""
+            o += ", \"evidence\": [" + v.evidence.map {
+                String(format: "{\"measurement\":\"%@\",\"measured\":%.6f,\"required\":\"%@\",\"held\":%@}",
+                       jsonEscape($0.measurement), $0.measured, jsonEscape($0.required),
+                       $0.held ? "true" : "false")
+            }.joined(separator: ",") + "]"
+            return o + " }"
+        }.joined(separator: ",\n")
+        s += "\n    ],\n"
+        s += "    \"uncoveredCandidateFrames\": [" + coaching.uncovered.map(String.init).joined(separator: ",") + "],\n"
+        s += "    \"criteria\": " + (coach.criteria.map { c in
+            "{\"version\":\"\(jsonEscape(c.header.version))\",\"walk\":\"\(jsonEscape(c.header.walk))\",\"owner\":\"\(jsonEscape(c.header.owner))\",\"source\":\"\(jsonEscape(c.source))\",\"rules\":\(c.rules.count)}"
+        } ?? "null") + ",\n"
+        s += "    \"lessons\": [" + coaching.lessons.map {
+            "{\"id\":\"\($0.id)\",\"headline\":\"\(jsonEscape($0.headline))\",\"origin\":\"\(jsonEscape($0.origin))\"}"
+        }.joined(separator: ",") + "]\n"
+        s += "  },\n"
+        s += "  \"note\": \"Confidences and luminance deltas are measurements, and they are the EVIDENCE UNDER the coaching verdict rather than the answer (decision #513). When coaching.available is false no band was assigned to anything and coaching.reason says why.\"\n"
         s += "}"
         print(s)
     }

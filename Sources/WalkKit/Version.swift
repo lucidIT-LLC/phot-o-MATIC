@@ -22,7 +22,7 @@ import Foundation
 /// as false when it was half true. Every absent capability now carries a reason,
 /// and a test fails if one does not.
 public enum Walk {
-    public static let version = "0.4.1"
+    public static let version = "0.5.0"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is
@@ -54,6 +54,12 @@ public enum Walk {
         "grade.still.api":       "0.4.0",  // the 0.1.0 still grade as a library call with its measurements
         "contract.reasons":      "0.4.0",  // every notImplemented entry carries why
         "mcp.stdio":             "0.4.0",  // MCP server over stdio: dual-era, server/discover + initialize
+        // 0.5.0 — #513: the output is a COACHING VERDICT, not a readout. The
+        // SHAPE and the loader are Walk's; the judgment in them is Pixel's,
+        // which is why `coach.verdict` is still below in notImplemented.
+        "coach.bands":           "0.5.0",  // #513's three bands; band 2's change AND forward question are init-enforced, not requested
+        "coach.criteria":        "0.5.0",  // #499's criteria file: four-field rules, own version, staleness check, absence reported as absence
+        "coach.evidence":        "0.5.0",  // every verdict carries the measurements that fired it and the decision that established the rule
     ]
 
     /// What Walk explicitly does NOT do yet. Stated so a consumer cannot infer
@@ -73,6 +79,7 @@ public enum Walk {
         "app.drive",
         "fcpxml.export",
         "coreml.custom",
+        "coach.verdict",
     ]
 
     /// Why each absent capability is absent, and what exists instead. A
@@ -96,6 +103,8 @@ public enum Walk {
             "Walk driving Affinity or Lightroom. The coach's lane (#494 puts actuation outside the engine), and unmeasured here.",
         "fcpxml.export":
             "#493 names FCPXML as the editorial handoff. Untouched; segments come out as .mov files only.",
+        "coach.verdict":
+            "THE JUDGMENT ITSELF, and it is absent because no criteria ship with this build. #513 rules that Walk's output is a coaching verdict — SELLABLE AS SHOT / HAS POTENTIAL, WITH THIS / NOT WORTH THE TROUBLE, each with a reason and a next-flight lesson — and #499 rules that Pixel's hard-earned logic is what renders it, because \"a Walk not carrying her experience is a light meter.\" Present (see coach.bands, coach.criteria, coach.evidence): the band shape with band 2's change and forward question enforced in the initializer, the versioned criteria loader, the staleness check, and the evidence trail. Absent: any criteria to load. Every scan therefore reports coaching.available = false with this reason, and app.proofSheet DISPLAYS candidates and does not judge them. Install a criteria set at ~/Library/Application Support/Walk/criteria.json, or name one in WALK_CRITERIA, and the verdicts render from it. This entry moves out of the list when a criteria set ships with Walk, and a test fails if one ships while it is still here.",
         "coreml.custom":
             "#495: whether a custom .mlmodel compiles and loads without Xcode is open, and task #722 stands. classify.vision uses Vision's built-in 1303-identifier taxonomy, which needs no model file.",
     ]

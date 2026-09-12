@@ -112,6 +112,9 @@ private struct ScanArgs {
     var options = ClipScan.Options.triage()
     var inlineImages = 0
     var maxCandidates = 200
+    /// The coach for this call. Built from the arguments once, so a folder walk
+    /// resolves the criteria file once rather than per clip.
+    var coach = Coaching.Coach()
 
     /// Hard ceiling on inline images regardless of what was asked for.
     ///
@@ -165,6 +168,8 @@ private struct ScanArgs {
             o.thumbnailMaxWidth = w
         }
         s.options = o
+        s.coach = Coaching.Coach(explicit: a["criteria"]?.stringValue
+            .map { URL(fileURLWithPath: $0) })
         s.inlineImages = min(a["inline_images"]?.intValue ?? 0, inlineImageCeiling)
         s.maxCandidates = max(1, a["max_candidates"]?.intValue ?? defaultMaxCandidates)
         return s
@@ -192,6 +197,7 @@ private let scanProperties: [String: JSON] = [
     "thumbnail_dir": str("Where to write the PNGs. Defaults to a Walk folder under the user's Caches directory — a cache and not a temp directory, so the path is still valid when it is read back."),
     "thumbnail_width": num("Longest edge of the written PNG, in pixels.", default: 640),
     "inline_images": int("How many candidate frames to ALSO return as inline image content, highest lightning confidence first. Capped at 6. Zero by default: a 640px PNG is a few hundred KB and one clip can produce dozens of candidates, so paths are returned always and bytes only on request.", default: 0),
+    "criteria": str("Absolute path to a coaching criteria file, which is what a verdict is rendered from (decision #499). Omit to use WALK_CRITERIA, then ~/Library/Application Support/Walk/criteria.json. Walk ships no criteria, so with none installed every result carries coaching.available=false and the reason — read that field instead of inferring a verdict."),
     "max_candidates": int("Ceiling on how many candidate rows come back PER CLIP — 200 for walk_scan, 10 for walk_scan_folder, because a full folder walk of 235 candidates serializes to about 200 KB. When it trims, it keeps the highest lightning confidence first and then the largest luminance rise, and says so in candidatesSelectedBy. The counts, the verdict and the thresholds always reflect every candidate found."),
 ]
 
@@ -228,7 +234,7 @@ private func detectorJSON(_ d: EventDetector.Result) -> JSON {
         "candidatesBeforeMerge": .int(d.candidatesBeforeMerge),
         "scaleCollapsed": .bool(d.scaleCollapsed),
         "foundNothing": .bool(d.foundNothing),
-        "note": .string("threshold = max(statistical, floor). boundBy says which half decided, so a reader can tell whether the answer came from the clip or from the constant. scaleCollapsed means more than half the frames sat exactly on their local median, so the clip supplied no measurable noise scale."),
+        "note": .string("threshold = max(statistical, floor). boundBy says which half decided, so a reader can tell whether the answer came from the clip or from the constant. scaleCollapsed means more than half the frames sat exactly on their local median, so the clip supplied no measurable noise scale. NOTE THE TWO SENSES OF THE WORD: the clip-level `verdict` string is the DETECTOR's — how many candidates cleared which threshold — and predates #513. The coaching verdict is in `coaching`. The detector field keeps its name and meaning so a 0.4.1 consumer is not broken."),
     ])
 }
 
@@ -298,7 +304,109 @@ private func selectCandidates(_ all: [ClipScan.Candidate], limit: Int)
                        : "largest luminance rise (classification was off)")
 }
 
-private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int) -> JSON {
+// MARK: - the coaching verdict (#513)
+
+/// The band SHAPE, stated once per response whether or not a verdict rendered.
+///
+/// A host that only ever sees `available: false` must still be able to learn
+/// what Walk's output IS — #513 makes the bands the product, and an absent
+/// verdict that also hides the shape teaches a consumer that Walk is a readout.
+/// That is the mistake the old instructions string made in prose.
+private func bandShapeJSON() -> JSON {
+    .array(Coaching.Band.allCases.sorted { $0.order < $1.order }.map { band in
+        .object([
+            "band": .string(band.rawValue),
+            "label": .string(band.label),
+            "promise": .string(band.promise),
+            "namesOneChange": .bool(band.requiresChange),
+            "asksForwardQuestion": .bool(band.requiresForwardQuestion),
+        ])
+    })
+}
+
+private func lessonsJSON(_ lessons: [Coaching.Lesson]) -> JSON {
+    .array(lessons.map {
+        .object(["id": .string($0.id), "headline": .string($0.headline),
+                 "detail": .string($0.detail), "origin": .string($0.origin)])
+    })
+}
+
+/// The criteria state, once per response rather than once per clip: whether a
+/// verdict can be rendered at all, and if not, why and where Walk looked.
+private func coachStateJSON(_ coach: Coaching.Coach) -> JSON {
+    var o: [String: JSON] = [
+        "available": .bool(coach.isReady),
+        "forwardQuestion": .string(Coaching.forwardQuestion),
+        "bands": bandShapeJSON(),
+        "lessons": lessonsJSON(Coaching.lessons),
+    ]
+    if let reason = coach.unavailableReason {
+        o["reason"] = .string(reason)
+        o["searched"] = .array((coach.resolution?.searched ?? []).map { .string($0) })
+        o["note"] = .string("coaching.available is false, so no band was assigned to anything. The candidates below are measured and unjudged. Do not present a verdict Walk did not render.")
+    } else if let c = coach.criteria {
+        o["criteria"] = .object([
+            "version": .string(c.header.version),
+            "walk": .string(c.header.walk),
+            "owner": .string(c.header.owner),
+            "established": .string(c.header.established),
+            "source": .string(c.source),
+            "rules": .int(c.rules.count),
+            "note": .optional(c.header.note),
+        ])
+        o["note"] = .string("Each verdict names the rule that fired and the decision that established it, with the measurements it read underneath. The numbers are evidence, not the answer.")
+    }
+    return .object(o)
+}
+
+private func verdictJSON(_ v: Coaching.Verdict) -> JSON {
+    .object([
+        "band": .string(v.band.rawValue),
+        "label": .string(v.band.label),
+        "frame": .int(v.frame),
+        "timecode": .string(v.timecode),
+        "seconds": .double(v.seconds),
+        "reason": .string(v.reason),
+        // Band 2 only, and never null there — the initializer refuses it.
+        "change": .optional(v.change),
+        "forwardQuestion": .optional(v.forwardQuestion),
+        "nextFlight": .string(v.nextFlight),
+        "rule": .string(v.ruleID),
+        "origin": .string(v.origin),
+        "evidence": .array(v.evidence.map {
+            .object(["measurement": .string($0.measurement),
+                     "measured": .double($0.measured),
+                     "required": .string($0.required),
+                     "held": .bool($0.held)])
+        }),
+        "thumbnail": .optional(v.thumbnail?.path),
+    ])
+}
+
+/// Per clip: the verdicts and the counts. The shape, the lessons and the reason
+/// for an absence live once at the top level — a folder walk of eight clips
+/// repeating them is the 50k-token result 0.4.1 was built to stop.
+private func clipCoachingJSON(_ report: Coaching.Report) -> JSON {
+    var o: [String: JSON] = [
+        "available": .bool(report.available),
+        "headline": .string(report.headline),
+    ]
+    guard report.available else { return .object(o) }
+    let counts = report.counts
+    o["counts"] = .object(Dictionary(uniqueKeysWithValues:
+        Coaching.Band.allCases.map { ($0.rawValue, JSON.int(counts[$0] ?? 0)) }))
+    o["verdicts"] = .array(report.verdicts.map(verdictJSON))
+    // NOT BANDED, AND NOT SILENTLY EITHER. A candidate no rule covered would
+    // otherwise vanish between a measured list and a judged one.
+    o["uncoveredCandidateFrames"] = .array(report.uncovered.map { .int($0) })
+    if !report.malformed.isEmpty {
+        o["malformed"] = .array(report.malformed.map { .string($0) })
+    }
+    return .object(o)
+}
+
+private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int,
+                      coach: Coaching.Coach? = nil) -> JSON {
     let exactY = r.yPlaneStride == 1
     let (shown, selectedBy) = selectCandidates(r.candidates, limit: maxCandidates)
     return .object([
@@ -322,6 +430,11 @@ private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int) -> JSON {
         "candidatesTrimmed": .bool(shown.count < r.candidates.count),
         "candidatesSelectedBy": .string(selectedBy),
         "candidates": .array(shown.map { candidateJSON($0, exactY: exactY) }),
+        // ADDITIVE, AND DELIBERATELY AFTER THE MEASUREMENTS IN THE OBJECT.
+        // #513: the verdict is the product and the numbers are the evidence
+        // under it. Nothing above this line changed shape, so a 0.4.1 consumer
+        // reads this result unchanged.
+        "coaching": coach.map { clipCoachingJSON($0.report(for: r)) } ?? .null,
     ])
 }
 
@@ -363,7 +476,12 @@ enum Tools {
             sigma, 10-bit Y-plane mean and max, Vision classifier confidences, and \
             a path to a written PNG of the frame. Reports the threshold it applied \
             and which half of it bound. "Nothing found" is returned as an answer, \
-            not an empty result. Renders no keep/pitch verdict.
+            not an empty result. Then RENDERS THE COACHING VERDICT over those \
+            measurements — three bands, each with a reason and a next-flight \
+            lesson (#513) — from the criteria file that carries Pixel's judgment. \
+            No criteria ship with Walk, so read `coach.available`: when it is \
+            false the result says why, the candidates are measured and unjudged, \
+            and no band has been assigned to anything.
             """,
         inputSchema: schema(scanProperties.merging([
             "path": str("Absolute path to the video file."),
@@ -382,8 +500,10 @@ enum Tools {
                 let args = try ScanArgs.parse(a, defaultStride: 1)
                 let result = try await ClipScan.run(url, options: args.options)
                 let inline = inlineImages(from: result.candidates, count: args.inlineImages)
-                var payload = clipJSON(result, maxCandidates: args.maxCandidates).objectValue ?? [:]
+                var payload = clipJSON(result, maxCandidates: args.maxCandidates,
+                                       coach: args.coach).objectValue ?? [:]
                 payload["walk"] = .string(Walk.version)
+                payload["coach"] = coachStateJSON(args.coach)
                 if !inline.images.isEmpty {
                     payload["inlineImages"] = .object([
                         "frames": .array(inline.frames.map { .int($0) }),
@@ -413,7 +533,9 @@ enum Tools {
             different answers and both are stated. Defaults to the fast Y-plane \
             stride because triage is the job; walk_scan one clip for exact figures. \
             This enumerates and scans. It does NOT rank a mixed folder by interest \
-            — see ingest.dump in walk_contract for why.
+            — see ingest.dump in walk_contract for why. Each clip also carries the \
+            coaching verdict (#513) when a criteria file is installed; `coach` at \
+            the top level says whether one was, and why not when it was not.
             """,
         inputSchema: schema(scanProperties.merging([
             "path": str("Absolute path to a folder, or to a single video file."),
@@ -471,7 +593,10 @@ enum Tools {
                         "clipsUnreadable": .int(folder.failures.count),
                     ]),
                     "verdict": .string(folder.verdict),
-                    "clips": .array(folder.clips.map { clipJSON($0, maxCandidates: args.maxCandidates) }),
+                    "coach": coachStateJSON(args.coach),
+                    "clips": .array(folder.clips.map {
+                        clipJSON($0, maxCandidates: args.maxCandidates, coach: args.coach)
+                    }),
                     "failures": .array(folder.failures.map {
                         .object(["path": .string($0.url.path), "reason": .string($0.reason)])
                     }),
@@ -737,7 +862,10 @@ enum Tools {
             be missing, and a NEWER Walk also fails because the consumer's \
             instructions may describe behaviour that has since changed. Call this \
             before relying on anything Walk does; absence is not silence here, and \
-            a capability not listed is one Walk does not have.
+            a capability not listed is one Walk does not have. Also reports \
+            whether a coaching verdict can be rendered on this host right now — \
+            the three bands are built, the criteria that fill them are not \
+            shipped, and coach.reason names where Walk looked for them.
             """,
         inputSchema: schema([
             "expect": str("A version string like 0.4.0 to check this build against."),
@@ -756,7 +884,13 @@ enum Tools {
                     "legacyVersions": .array(Protocols.legacy.map { .string($0) }),
                     "tools": .array(Tools.all.map { .string($0.name) }),
                 ]),
-                "note": .string("capabilities and notImplemented are disjoint, and a test fails if they are not. Every notImplemented entry must carry a reason, and a test fails if one does not."),
+                // THE COACHING SURFACE, STATED IN THE CONTRACT RATHER THAN
+                // DISCOVERED BY A CONSUMER. #513 named the gap precisely:
+                // app.proofSheet was declared with no statement that the sheet
+                // does not judge — absence indistinguishable from success, in
+                // the one surface built to prevent that.
+                "coach": coachStateJSON(Coaching.Coach()),
+                "note": .string("capabilities and notImplemented are disjoint, and a test fails if they are not. Every notImplemented entry must carry a reason, and a test fails if one does not. coach reports whether a coaching verdict can be rendered on this host right now, which is a different question from whether this build supports one."),
             ]
             if let expect = a["expect"]?.stringValue {
                 let c = Walk.check(expecting: expect)

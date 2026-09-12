@@ -64,7 +64,10 @@ public struct ClipScan: Sendable {
         }
     }
 
-    /// One candidate with everything measured about it and nothing judged.
+    /// One candidate with everything measured about it. Judgment is a separate
+    /// pass — `Coaching.Coach` reads these values and bands them from the
+    /// criteria file — so the measurement stays deterministic and the judgment
+    /// stays pluggable, which is #494's seam.
     public struct Candidate: Sendable {
         public let frame: Int
         public let timecode: String
@@ -88,6 +91,26 @@ public struct ClipScan: Sendable {
         public let thumbnail: URL?
 
         public func confidence(_ identifier: String) -> Double? { confidences?[identifier] }
+
+        /// PUBLIC so a caller that measured a clip its own way — the CLI's scan
+        /// path, which builds findings rather than candidates — can hand the
+        /// same values to the coach. Without it the CLI would have had to grow
+        /// its own banding, and a second implementation of the judgment layer is
+        /// the drift that #507 already cost this repository once.
+        public init(frame: Int, timecode: String, time: Double, ciLuma: Double,
+                    baseline: Double, delta: Double, relativeRise: Double,
+                    sigma: Double, mergedFrames: Int, yMean: Double?, yMax: Int?,
+                    yClipped: Bool, confidences: [String: Double]?,
+                    topLabels: [(identifier: String, confidence: Double)],
+                    classifyMilliseconds: Double?, thumbnail: URL?) {
+            self.frame = frame; self.timecode = timecode; self.time = time
+            self.ciLuma = ciLuma; self.baseline = baseline; self.delta = delta
+            self.relativeRise = relativeRise; self.sigma = sigma
+            self.mergedFrames = mergedFrames; self.yMean = yMean; self.yMax = yMax
+            self.yClipped = yClipped; self.confidences = confidences
+            self.topLabels = topLabels; self.classifyMilliseconds = classifyMilliseconds
+            self.thumbnail = thumbnail
+        }
     }
 
     public struct Result: Sendable {

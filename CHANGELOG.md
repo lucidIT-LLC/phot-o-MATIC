@@ -1,5 +1,141 @@
 # Changelog
 
+## 0.5.0 — 2026-09-12
+
+**The MCP server told every consumer the opposite of the product's own
+doctrine, in the one string guaranteed to be read first.** Fixed first, because
+it was not merely stale — it suppressed the feature.
+
+`walk-mcp`'s `instructions` string is the text an MCP host reads BEFORE it
+chooses a tool, served on every connect. It read, verbatim:
+
+> "It never renders a keep/pitch verdict — sorting and flagging is Walk's job,
+> judgment is yours and the operator's."
+
+**Decision #513 reverses that exactly:** Walk's output is a COACHING VERDICT,
+not a measurement readout. So the server shipped prose describing a product
+decision that had been overturned — this factory's most-repeated defect class,
+prose describing a mechanism that no longer exists with nothing able to notice,
+sitting in the most-read sentence the repository owns. And the failure mode is
+worse than staleness: **a consumer told "never renders a verdict" does not ask
+for one.** The defect was spotted during the 0.4.1 build and correctly left as
+out of brief; it was in brief here (task #736).
+
+It is now rewritten to state the doctrine AND the current absence, because
+either half alone is a lie of a different kind. The same sentence was corrected
+in four other places it had been copied to: `README.md`'s design rule 5, the
+`walk scan` text output, the `walk scan --json` note, and `walk_scan`'s tool
+description.
+
+### The three bands (#513)
+
+| Band | What it owes |
+|---|---|
+| **SELLABLE AS SHOT** | Good, and why — the craft a buyer is paying for, not the number |
+| **HAS POTENTIAL, WITH THIS** | The one specific change, then *"Where did you want to go?"* |
+| **NOT WORTH THE TROUBLE** | Why, plainly, so the tell is learned |
+
+Every band carries a next-flight lesson. **Band 2's two halves are enforced in
+`Coaching.Verdict`'s initializer, which throws** — a verdict with the change and
+no question, or the question and no change, cannot be constructed. That is
+deliberate: such a verdict would still render, still read like coaching, and
+have quietly become a sorting label. Nine tests assert the refusals.
+
+### The criteria file (#499), which is the missing mechanism
+
+Decision #499 ruled that Pixel's hard-earned logic drives the verdicts and that
+a Walk without it "is a light meter". 0.4.1 shipped the light meter because
+there was no mechanism to produce a judgment. `Criteria` is that mechanism: a
+versioned JSON file whose every rule carries #499's four fields — the
+measurement, the threshold, the reason in language, and **the session or
+decision that established it**. The loader refuses a rule missing any of them.
+
+**No criteria ship with Walk, and every surface says so.** `coach.verdict` is in
+`Walk.notImplemented` with a reason that names `app.proofSheet` as displaying
+and not judging — the exact gap #513 identified, where the contract surface
+built to prevent absence-reading-as-success declared a proof sheet and said
+nothing about it not judging. `walk contract`, every `walk_scan` result and the
+app panel all report `available: false`, the reason, and every path searched.
+
+Four refusals, each because the alternative is a verdict that cannot be audited:
+
+- a rule with no `origin` — field 4 is what lets a verdict cite its own source;
+- criteria written against another Walk version — **no** verdict renders and the
+  mismatch is reported, same discipline as `walk contract`;
+- a candidate no rule covers — returned as uncovered and left **unjudged**,
+  because a default band lets a thin criteria set read as a complete judgment;
+- an unmeasured confidence — `null` is not `0`, so a rule reading one does not
+  fire rather than firing on a false zero.
+
+### What was NOT touched, and that is the point
+
+The measurement layer was not the defect. 13 candidates out of 2,771 frames of
+4K60 HLG in 29.5 s, with the statistical floor honestly reported as a threshold
+rather than a verdict, is good and fast. #513 rejected removing it in terms:
+**the measurements are the evidence UNDER a verdict, available and not
+leading.** Every verdict lists the value it read and the threshold it was tested
+against. Removing them would make the coach unfalsifiable. The JSON response
+shape was measured as additive in 0.4.1 and it was: `coaching` was appended to
+each clip and `coach` to the top level, nothing above them changed, and a 0.4.1
+consumer reads these results unchanged.
+
+### Readback, on real footage
+
+MEASURED, clip `DJI_20260912051637_0012_D.MP4`, frames 2330–2400, with a
+criteria file **labelled in its own `owner` field as a Carver fixture and not
+photographic judgment** — the plumbing is proven, the content is not claimed:
+
+```
+COACHING VERDICT  2 SELLABLE AS SHOT · 5 HAS POTENTIAL, WITH THIS · 1 NOT WORTH THE TROUBLE
+
+  SELLABLE AS SHOT
+    frame 2367   evidence vision.lightning = 0.5581 (rule required atLeast 0.4500)
+    frame 2388   evidence vision.lightning = 0.6616 (rule required atLeast 0.4500)
+  HAS POTENTIAL, WITH THIS
+    frame 2347   evidence vision.lightning = 0.3435 (rule required between 0.1000 and 0.4499)
+                 Where did you want to go?
+```
+
+**Note which frames those are.** The fixture bands 2367 and 2388 as the best and
+drops the brightest frame in the clip, 2347, into band 2 — which is #504
+correcting #495 arriving in the output surface. Frame 2347 lifted the picture
+36.0% and scores 0.34; frame 2388 lifted it 0.8% and scores 0.66. **Luminance
+finds bright flashes; classification finds lightning.** Sorting by brightness
+picks the wrong frame, and the first scan of this clip lost two real
+cloud-to-ground strikes that way. That lesson ships as
+`Coaching.luminanceIsNotLightning` with its measured numbers, its origin, and a
+test asserting the numbers — and it is reported **even when no verdict can be**,
+because it is Walk's own measurement rather than anyone's taste.
+
+### Added
+
+- `WalkKit/Coaching.swift` — bands, the throwing verdict initializer, the
+  evidence trail, the report with its honest-absence path, the lesson.
+- `WalkKit/Criteria.swift` — the criteria file: schema, resolution order
+  (explicit → `WALK_CRITERIA` → Application Support), validation, staleness.
+- Capabilities `coach.bands`, `coach.criteria`, `coach.evidence`; absence
+  `coach.verdict` with its reason.
+- `criteria` argument on `walk_scan` / `walk_scan_folder`; `--criteria` on
+  `walk scan`; `coaching` per clip and `coach` at the top level of every result;
+  a coaching block in `walk contract` and in the app's proof sheet.
+- `ClipScan.Candidate` gained a public initializer so the CLI hands its own
+  findings to the same coach instead of growing a second judgment layer.
+- 79 tests, 27 of them new and most of them asserting a refusal.
+
+### Not done, and named rather than left to be discovered
+
+- **The criteria content.** Pixel's judgments on clip 0012 were being written to
+  `artifacts/walk/clip-0012-verdicts.md` while this shipped and had not landed
+  when it was tagged. #499 reserves the judgment to her; authoring photographic
+  criteria here would have been the one thing this build was told not to do. The
+  shape is ready and `Coaching.shippedCriteriaJSON` is `nil`, **tied by a test
+  to the `coach.verdict` absence in both directions** so criteria cannot ship
+  quietly with a contract still denying them.
+- **The o-MATIC mark on the sheet.** #513 also recorded that the sheet carries no
+  o-MATIC identity. Not attempted: the mascot shape is Tier 0 and drawing one
+  from a description is forbidden, so it belongs with the brand work rather than
+  here.
+
 ## 0.4.1 — 2026-09-12
 
 **The front door's headline gesture returned 50k tokens of JSON.** Measured

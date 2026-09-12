@@ -4,7 +4,9 @@ import CoreGraphics
 import ImageIO
 import WalkKit
 
-/// One found moment, with everything measured about it and nothing judged.
+/// One found moment and everything measured about it. The judgment is not here:
+/// it is on `ClipResult.coaching`, rendered from the criteria file, so a moment
+/// carries no band of its own to drift from the report's.
 struct Moment: Identifiable {
     let id = UUID()
     let clip: URL
@@ -38,6 +40,11 @@ struct ClipResult: Identifiable {
     let verdict: String
     let missingIndices: [Int]
     var moments: [Moment]
+    /// #513: the coaching verdict over these moments, or the stated reason
+    /// there is none. The sheet's old strapline — "Every frame measured; none
+    /// judged" — was honest about an instrument and the wrong promise for the
+    /// product, and this is what replaced it.
+    let coaching: Coaching.Report
 }
 
 @MainActor
@@ -103,6 +110,10 @@ final class ProofSheetModel {
     }
 
     private func scan(_ files: [URL]) {
+        // ONE resolution of the criteria file for the whole run, not one per
+        // clip. It also means the sheet reports the same coaching state across
+        // a folder, which is what the state actually is.
+        let coach = Coaching.Coach()
         scanTask?.cancel()
         clips = []
         selectedClip = nil
@@ -113,7 +124,7 @@ final class ProofSheetModel {
                 if Task.isCancelled { break }
                 self.state = .scanning(clip: file.lastPathComponent, progress: 0)
                 do {
-                    let result = try await Self.scanOne(file) { fraction in
+                    let result = try await Self.scanOne(file, coach: coach) { fraction in
                         Task { @MainActor in
                             self.state = .scanning(clip: file.lastPathComponent, progress: fraction)
                         }
@@ -145,7 +156,7 @@ final class ProofSheetModel {
     /// Three copies of an order of operations is how a front door drifts from
     /// the library it fronts, so the sequence moved to `ClipScan` and this calls
     /// it. No number here changed.
-    private static func scanOne(_ url: URL,
+    private static func scanOne(_ url: URL, coach: Coaching.Coach,
                                 progress: @escaping @Sendable (Double) -> Void) async throws -> ClipResult {
         // STRIDE 4, NOT 1, AND THE UI SAYS SO.
         //
@@ -185,7 +196,10 @@ final class ProofSheetModel {
             statisticalThreshold: scanned.detection.statisticalThreshold,
             scaleCollapsed: scanned.detection.scaleCollapsed,
             verdict: scanned.verdict, missingIndices: scanned.missingIndices,
-            moments: moments)
+            moments: moments,
+            // The judgment is not computed here. The app hands the same
+            // candidates to the same coach the CLI and the MCP server use.
+            coaching: coach.report(for: scanned))
     }
 
     /// `ClipScan` writes the display PNG to disk — one path, shared with the MCP

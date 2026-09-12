@@ -50,13 +50,49 @@ let serverInfo: JSON = .object([
 ])
 
 /// Read by a model before it picks a tool, so it says what the numbers mean and
-/// where the edge of the detector is. #507 is the reason the last paragraph is
-/// here: the operator dropped in a folder of GoPro footage, got 38 "candidates"
-/// on one clip, and the honest reading of those is brightness changes.
+/// where the edge of the detector is. #507 is the reason the "what a candidate
+/// is" paragraph is here: the operator dropped in a folder of GoPro footage, got
+/// 38 "candidates" on one clip, and the honest reading of those is brightness
+/// changes.
+///
+/// 0.5.0 REWROTE THE FIRST PARAGRAPH BECAUSE IT SHIPPED THE OPPOSITE DOCTRINE.
+/// It read, verbatim: "It never renders a keep/pitch verdict — sorting and
+/// flagging is Walk's job, judgment is yours and the operator's." Decision #513
+/// reverses that exactly: Walk's output is a COACHING VERDICT, not a measurement
+/// readout. So this string — the one text a host reads BEFORE it chooses a tool,
+/// served to every consumer on connect — was describing a product decision that
+/// had been overturned, which is this factory's most-repeated defect class
+/// sitting in the most-read sentence it owns. A consumer told "never renders a
+/// verdict" does not ask for one, so the prose was not merely stale, it
+/// suppressed the feature.
+///
+/// What it must NOT do in correcting that is claim the verdict works. It does
+/// not yet: no criteria ship (#499, `coach.verdict` in `Walk.notImplemented`),
+/// so every scan reports `coaching.available = false` with the reason. This text
+/// says both halves — the doctrine and the current absence — because either one
+/// alone is a lie of a different kind.
 let serverInstructions = """
-Walk measures video and stills on this machine and reports numbers. It never \
-renders a keep/pitch verdict — sorting and flagging is Walk's job, judgment is \
-yours and the operator's.
+Walk is a COACHING tool for photographers, not a readout. Its output is a \
+verdict in three bands, each carrying a reason and a lesson for next flight: \
+SELLABLE AS SHOT (good, and why — the craft a buyer is paying for, not the \
+number); HAS POTENTIAL, WITH THIS (the one specific change, then the question \
+"where did you want to go?", which is required and not decoration); and NOT \
+WORTH THE TROUBLE (why, plainly, so the tell is learned). The goal is sellable, \
+professional output and better photographers.
+
+THE VERDICT IS NOT AVAILABLE IN THIS BUILD AND EVERY RESULT SAYS SO. The bands \
+are rendered from a criteria file that carries Pixel's judgment, and Walk ships \
+none, so each scan returns `coaching.available: false` with the reason and the \
+paths it looked in. Read that field rather than assuming: when a criteria set is \
+installed the same scans come back banded, with the measurements as evidence \
+underneath. Until then the honest answer to "is this frame any good" is that \
+Walk measured it and cannot yet judge it — say that, and do not substitute a \
+verdict of your own invention for the missing one.
+
+The measurements are the EVIDENCE UNDER a verdict, available and not leading. \
+They are good and they are not the answer: a frame that scores badly can be the \
+photograph, and ranking by a number is how the first scan of the storm clip lost \
+two real strikes.
 
 Start with walk_contract to learn this build's version and exactly which \
 capabilities are present and absent. Every absent capability carries a reason.
@@ -78,7 +114,7 @@ moments. Luminance finds bright flashes; classification finds lightning; they \
 are different measurements and Walk reports both separately on purpose.
 
 "Nothing found" is a real answer and is reported as one, with the threshold \
-that was applied and which half of it bound.
+that was applied and which half of it bound. So is "measured but not judged".
 """
 
 /// Which era the client opened with, for diagnostics only. Never used to change

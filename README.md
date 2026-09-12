@@ -103,7 +103,7 @@ walk-mcp --selftest             # names its transport, protocols and tools
 ```
 walk_scan          path, from_frame, to_frame, vision, identifiers,
                    y_plane_stride, sigma, floor, thumbnails, thumbnail_dir,
-                   thumbnail_width, inline_images, max_candidates
+                   thumbnail_width, inline_images, max_candidates, criteria
 walk_scan_folder   path | paths, recursive, max_clips, + every walk_scan option
 walk_segments      path, handles | lead_seconds + tail_seconds, out_dir, fps,
                    from_frame, to_frame, vision, sigma, floor
@@ -152,8 +152,26 @@ result        13 candidates over 2771 frames at a 1.000% threshold (floor bound)
    2388  00:00:39:48    39.840  0.385155  0.371452  +0.013703   +3.689%      147.1  414.238   1019     0.6616 0.6756
    ...
 
-Vision confidences are measurements, not verdicts. Walk sorts and flags;
-the keep/pitch judgment is the operator's or Pixel's.
+COACHING VERDICT  none rendered
+  no criteria file. Decision #499 rules that Pixel's hard-earned logic drives Walk's
+  verdicts, and #513 that the output is a coaching verdict rather than a readout; the
+  criteria file is the mechanism a verdict comes from and Walk does not ship one. The
+  measurements are complete and unjudged. Install a criteria set at
+  /Users/lucid/Library/Application Support/Walk/criteria.json, or name one with
+  WALK_CRITERIA, and every scan renders bands from it.
+  looked in:
+    default: /Users/lucid/Library/Application Support/Walk/criteria.json
+
+  The bands a criteria set fills:
+    SELLABLE AS SHOT
+      Good, and why — the reason names the craft a buyer is paying for, not the number.
+    HAS POTENTIAL, WITH THIS
+      One specific change that would make it sell, then where you were going.
+    NOT WORTH THE TROUBLE
+      Why, plainly, so the tell is learned and not shot again.
+
+  Luminance finds bright flashes. Classification finds lightning. They are different
+  measurements.
 ```
 
 ```
@@ -201,11 +219,87 @@ make run     # builds and launches it
 `Walk.app --scan <path>` scans immediately, which is how the app gets verified
 against known material instead of asserted to work.
 
+## The verdict, and where it comes from
+
+**Decision #513: Walk's output is a coaching verdict, not a measurement
+readout.** The operator, on seeing the first proof sheet: *"the goal is to teach
+and keep the user moving forward in their art. so you need to say these are
+good, and why, these could be with this, where did you want to go? and these
+ones aren't worth the trouble. The goal is sellable output. professional output.
+make better photographers."*
+
+| Band | What it owes |
+|---|---|
+| **SELLABLE AS SHOT** | Good, and why — the reason names the craft a buyer is paying for, not the number |
+| **HAS POTENTIAL, WITH THIS** | The one specific change, then *"Where did you want to go?"* |
+| **NOT WORTH THE TROUBLE** | Why, plainly, so the tell is learned and not shot again |
+
+Every band also teaches next flight — hover position, framing, exposure lock,
+whether 60 fps for a 30 fps cut was right on a one-frame event. A verdict the
+photographer cannot act on next time is a sorting label wearing a coach's voice.
+
+Band 2 is the mechanism of the ruling and it is two parts, so **both are
+enforced in the initializer rather than requested in a comment**: a verdict
+carrying a change without the forward question cannot be constructed, and
+neither can one carrying the question without a change. `CoachingTests.swift`
+asserts each refusal. A band-2 verdict that lost either half would still render,
+still read like coaching, and have quietly become a sorting label.
+
+**The judgment is not in the code.** Decision #499: *"we need pixel experience
+driving it"* — a Walk that does not carry her experience is a light meter. So the
+bands are filled from a **criteria file**, and Walk ships none. `coach.verdict`
+is in `walk contract`'s not-implemented list with that reason, every scan returns
+`coaching.available: false` and says where it looked, and the app's proof sheet
+states that it displays and does not judge. Absence is reported as absence.
+
+Install one at `~/Library/Application Support/Walk/criteria.json`, name one in
+`WALK_CRITERIA`, or pass `--criteria` / the `criteria` tool argument. Each rule
+carries the four fields #499 requires, and the loader refuses a rule missing any
+of them:
+
+```json
+{
+  "criteria": { "version": "1.0.0", "walk": "0.5.0",
+                "owner": "pixel", "established": "2026-09-12" },
+  "rules": [
+    { "id": "thin-bolt-fully-formed",
+      "band": "sellableAsShot",
+      "when": [{ "measurement": "vision.lightning", "op": "atLeast", "value": 0.45 }],
+      "reason":     "...",   // field 3 — why, in craft language
+      "origin":     "...",   // field 4 — the session or decision that established it
+      "nextFlight": "..." }
+  ]
+}
+```
+
+`when` reads `vision.<identifier>`, `relativeRise`, `relativeRisePercent`,
+`sigma`, `yMean`, `yMax` or `mergedFrames` with `atLeast`, `atMost`,
+`greaterThan`, `lessThan` or `between`. Order in the file is precedence; the
+first rule whose every condition holds wins, and the verdict names it.
+
+Four things it refuses, each because the alternative is a verdict that cannot be
+audited:
+
+- **A rule with no `origin`.** Field 4 is what lets a verdict cite where the
+  advice came from, so the operator can check it rather than trust it. It is
+  also the field that would have caught Pixel 2.2.0's reversed sign.
+- **Criteria written against another Walk.** The file declares the version it was
+  written for; a mismatch renders **no** verdict and reports the mismatch, under
+  the same discipline as `walk contract`.
+- **A candidate no rule covers.** It is returned as uncovered and left unjudged.
+  A default band would let a thin criteria set read as a complete judgment.
+- **An unmeasured value read as zero.** With `--no-vision` the confidences are
+  `null`, not `0`, so a rule reading one does not fire at all.
+
+The measurements stay, underneath. #513 kept them deliberately: removing them
+would make the coach unfalsifiable. Each verdict lists the value it read and the
+threshold it was tested against.
+
 ## Build
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 52 tests
+make test                     # 79 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
@@ -294,13 +388,17 @@ number. A retime ratio computed through a `Double` truncates 2000/1001 to
 1999/1001 and passes every check except reading the duration. Each of those is
 recorded where the workaround lives, not in a commit message nobody reads.
 
-**5. Walk sorts and flags. It never renders a keep/pitch verdict.** Session #228
-measured that the operator's best-selling photograph fails nearly every
-technical metric taken on it — 66.57% shadow, clipped at both ends, the highest
+**5. Walk renders a verdict, and it is never derived from the metrics.**
+Decision #513: the output is a coaching verdict in three bands, each carrying a
+reason and a lesson for next flight. Session #228 is why the verdict cannot come
+from the numbers — the operator's best-selling photograph fails nearly every
+technical metric taken on it: 66.57% shadow, clipped at both ends, the highest
 noise floor and the smallest file of the set. A tool that discarded his best
-seller because it scored badly would be worse than no tool. Walk reports
-measurements and confidences. The judgment stays with the operator, or with
-Pixel on the finals.
+seller because it scored badly would be worse than no tool. So the judgment
+comes from a criteria file carrying Pixel's experience (#499), the measurements
+sit underneath it as evidence, and where there is no criteria file there is no
+verdict and the result says so. This README said the opposite until 0.5.0, and
+so did the MCP server's own instructions string — see the changelog.
 
 **6. Every finding declares how it was established.** Measured, inferred, or
 reported. The changelog says which, every time.
