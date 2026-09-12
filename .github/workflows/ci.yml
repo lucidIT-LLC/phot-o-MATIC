@@ -86,7 +86,30 @@ jobs:
         run: ./.github/check-deprecations.sh /tmp/build.log
 
       - name: Test
-        run: swift test --build-system native
+        run: |
+          set -o pipefail
+          swift test --build-system native 2>&1 | tee /tmp/test.log
+
+      # THE README STATES A TEST COUNT, SO THE COUNT IS CHECKED. Same defect
+      # class as everything else here: a number in prose that was true once.
+      # It drifted three times inside 0.4.0 alone — 48, then 50, then 51 — and
+      # each time it was corrected by hand, which is the part that does not
+      # scale. The skip count is reported too, because the known-answer tests
+      # cannot run on a CI runner and a green badge must not read as a verified
+      # known answer.
+      - name: README's test count matches the suite
+        run: |
+          RAN=$(grep -oE "Test run with [0-9]+ tests" /tmp/test.log | tail -1 | grep -oE "[0-9]+")
+          SAID=$(grep -oE "make test +# [0-9]+ tests" README.md | grep -oE "[0-9]+" | tail -1)
+          SKIPPED=$(grep -c "skipped" /tmp/test.log || true)
+          echo "suite ran $RAN; README says $SAID; $SKIPPED skip lines in the log"
+          [ -n "$RAN" ] || { echo "::error::could not read a test count out of the test log"; exit 1; }
+          [ -n "$SAID" ] || { echo "::error::README no longer states a test count"; exit 1; }
+          if [ "$RAN" != "$SAID" ]; then
+            echo "::error::README says $SAID tests and the suite ran $RAN"
+            exit 1
+          fi
+          echo "test count matches"
 
       # The version contract is a runtime control, so CI exercises it as one.
       # It must PASS on its own version and FAIL on every other — a check that

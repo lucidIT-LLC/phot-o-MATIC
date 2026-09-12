@@ -103,13 +103,20 @@ before it ran to completion. A test pins both the `CancellationError` and the
 elapsed time, because a cancellation that is merely *reported* is the thing that
 was wrong.
 
-### And one more control, because the README is what a consumer reads first
+### And two more controls, because the prose is what a consumer reads first
 
 `.github/check-tool-docs.py` compares the README's tool block against the LIVE
 `tools/list` schema, both directions: a parameter the server takes that nobody
 documented, and a parameter the README names that no tool has. Currently
 5 tools, 45 parameters, none undocumented and none invented — and both failure
 directions were proven before it was accepted.
+
+And the README states a test count, so **the test count is checked**. It drifted
+three times inside 0.4.0 alone — 48, then 50, then 51 — and each time it was
+corrected by hand, which is the part that does not scale. CI now reads the count
+out of the test log and compares it, and reports the skip count alongside,
+because the known-answer tests cannot run on a CI runner and a green badge must
+not read as a verified known answer.
 
 The same defect class as everything else in this workflow. A README documenting
 `--frames` after it became `from_frame` is a retired KB number cited as live
