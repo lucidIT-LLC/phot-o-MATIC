@@ -357,6 +357,7 @@ public final class VideoReader {
         private let provider: AVAssetReaderOutput.Provider<CMReadySampleBuffer<CMSampleBuffer.DynamicContent>>
         private let frameDurationSeconds: Double
         private var started = false
+        private var registered = false
         public private(set) var delivered = 0
 
         init(reader: AVAssetReader,
@@ -365,24 +366,44 @@ public final class VideoReader {
             self.reader = reader
             self.provider = provider
             self.frameDurationSeconds = frameDurationSeconds
+            // No-op unless WALK_TEST_WATCHDOG_SECONDS is set. See StallWatchdog.
+            StallWatchdog.armIfRequested()
         }
 
         public func next() async throws -> Frame? {
-            if !started { try reader.start(); started = true }
+            if !started {
+                try reader.start(); started = true
+                if !registered { registered = true; StallWatchdog.passBegan() }
+            }
             while let ready = try await provider.next() {
                 // A pass with nil outputSettings can deliver marker-only samples;
                 // a decoded pass should not, but the cast is the honest filter.
                 guard let pixels = CMReadySampleBuffer<CVReadOnlyPixelBuffer>(ready) else { continue }
                 delivered += 1
+                // A decoded frame is the only honest proof of forward progress.
+                // The await above can park a cooperative thread indefinitely;
+                // this is what tells the watchdog it did not.
+                StallWatchdog.beat()
                 let pts = pixels.presentationTimeStamp
                 let index = frameDurationSeconds > 0
                     ? Int((CMTimeGetSeconds(pts) / frameDurationSeconds).rounded()) : delivered - 1
                 return Frame(index: index, pts: pts, buffer: pixels.content)
             }
+            if registered { registered = false; StallWatchdog.passEnded() }
             return nil
         }
 
-        public func cancel() { reader.cancelReading() }
+        public func cancel() {
+            reader.cancelReading()
+            if registered { registered = false; StallWatchdog.passEnded() }
+        }
+
+        deinit {
+            // `cancel()` is the normal path (VideoWriter and FrameScanner both
+            // `defer` it), but a pass dropped without cancelling must not leave
+            // the watchdog believing a read is still in flight forever.
+            if registered { StallWatchdog.passEnded() }
+        }
         public var status: AVAssetReader.Status { reader.status }
         public var error: Error? { reader.error }
     }

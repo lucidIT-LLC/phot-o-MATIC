@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install-mcp deprecations verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check deprecations verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -32,8 +32,33 @@ release:
 
 # --build-system native also works and is what CI uses; the scratch path is the
 # fix for the cause rather than a way around the symptom.
+#
+# --no-parallel IS LOAD-BEARING. MEASURED 2026-09-13.
+#
+# Run in parallel, this suite deadlocks. Sampled: TWELVE tests simultaneously
+# blocked in AVAssetReaderOutput.Provider.next() -> _pthread_cond_wait, every
+# one on com.apple.root.default-qos.cooperative. hw.ncpu is twelve. That is the
+# entire Swift Concurrency cooperative pool parked at once -- Apple's async
+# provider blocks a cooperative thread underneath an await, and with enough
+# concurrent video tests there is no thread left to resume any of them.
+#
+# Proven both directions on this machine:
+#   swift test                 -> wedged at 0.0% CPU, 29 min, no output
+#   swift test --no-parallel   -> 138 tests pass in 251 s
+#   one video test alone       -> passes in 2.2 s
+#
+# WALK_TEST_WATCHDOG_SECONDS is the backstop, not the fix. If the deadlock ever
+# returns -- someone drops --no-parallel, CI runs the plain command, or a new
+# test opens enough passes to starve the pool anyway -- it aborts the process
+# with a diagnostic and a nonzero status instead of hanging. THAT DISTINCTION
+# IS THE WHOLE POINT: a hang writes zero bytes and reads exactly like a job
+# that never started, which is how this went unexplained for a day.
+#
+# The limit is a gap BETWEEN DECODED FRAMES while a read pass is open, not a
+# test duration. The slowest legitimate test here runs 213 s and beats
+# continuously throughout.
 test:
-	swift test --scratch-path $(SCRATCH)
+	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH) --no-parallel
 
 contract: release
 	$(SCRATCH)/release/walk contract
@@ -64,43 +89,63 @@ mcp-check: release
 # and WALK_MCP_LOG to capture the exchange. See mcp-handshake.sh.
 BINDIR := $(HOME)/.local/bin
 
-# #740: THE SUCCESS MESSAGE MUST NOT BE ABLE TO OMIT THE ONE FACT IT EXISTS TO
-# CONVEY. This target used to end with
-#     @echo "walk-mcp $$($(BINDIR)/walk-mcp --version) installed at ..."
-# an unguarded command substitution. A binary that could not identify itself
-# printed "walk-mcp  installed at ..." and the install still reported SUCCESS, at
-# exactly the moment the operator needs to know which build he just staged. That
-# is what task #740 recorded, and it is the same shape as everything else in that
-# task: a silent reading read as a fine one.
+# --- staging the front doors ------------------------------------------------
 #
-# The version is now captured, checked for emptiness, AND checked against the
-# version declared in Sources/WalkKit/Version.swift — which also catches a stale
-# copy, where the binary identifies itself perfectly well as the wrong build.
-# Any of the three failures fails the target instead of printing a blank.
-install-mcp: release
-	mkdir -p $(BINDIR)
-	cp $(MCP) $(BINDIR)/walk-mcp
+# TASK #729: THE CLI HAD NO INSTALL TARGET AT ALL, AND THE ABSENCE IS THE DEFECT.
+#
+# MEASURED 2026-09-12: `$(BINDIR)/walk --version` reported 0.3.0 while
+# `$(BINDIR)/walk-mcp --version` reported 0.5.0, on this host, from this tree.
+# There was an `install-mcp` target and nothing for the CLI, so the front door
+# with an install path stayed current and the one without drifted through two
+# releases. `make clean` removes the release directory the stale binary was
+# copied from, so nothing on the box could say what build it was.
+#
+# It was not cosmetic. `walk contract --expect 0.5.0` exited 1 (measured), so
+# Pixel's skill section 8.5 version gate read as FAILING — the gate was right,
+# it was reporting a real drift, and there was no path to fix what it found. And
+# `walk contract` listed ZERO `coach.*` capabilities (measured) while walk-mcp
+# told the same host they were declared: one host, two front doors, two
+# contracts.
+#
+# THE CHECK IS ONE SCRIPT BOTH TARGETS CALL, not a check per target. #740 gave
+# `install-mcp` a good check — capture the version, fail on blank, fail on
+# disagreement with Sources/WalkKit/Version.swift — and that check being in ONE
+# target is what let the other one drift. A copied check can diverge; the
+# diverging front door IS #729. `.github/stage-binary.sh` now holds it, adds the
+# two cases the inline version could not express (a missing build, an unreadable
+# Version.swift) and PROVES IT CAN FAIL under `--selftest`, the same way
+# check-doctrine.py does.
+#
+# REGISTRATION IS STILL THE OPERATOR'S TO RUN, not this Makefile's to do behind
+# him — see the note under install-mcp.
+CLI := $(SCRATCH)/release/walk
+
+# BOTH DOORS, ONE COMMAND, and that is the structural half of the fix. Two
+# separate install targets would leave "did you do the other one?" to memory,
+# which is how 0.3.0 and 0.5.0 came to be installed side by side.
+install: install-cli install-mcp
+	@echo ""
+	@echo "both front doors staged from this tree and each verified against Walk.version"
+
+install-cli: release
+	./.github/stage-binary.sh walk $(CLI) $(BINDIR)
 	@set -e; \
-	 installed=$$($(BINDIR)/walk-mcp --version 2>/dev/null || true); \
 	 declared=$$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift); \
-	 if [ -z "$$declared" ]; then \
-	   echo "install-mcp FAILED: cannot read Walk.version out of Sources/WalkKit/Version.swift," >&2; \
-	   echo "so there is nothing to check the installed binary against." >&2; \
-	   exit 1; \
-	 fi; \
-	 if [ -z "$$installed" ]; then \
-	   echo "install-mcp FAILED: $(BINDIR)/walk-mcp does not report a version." >&2; \
-	   echo "The copy succeeded, but a binary that cannot identify itself makes this" >&2; \
-	   echo "message a claim rather than a fact, so the target fails instead." >&2; \
-	   exit 1; \
-	 fi; \
-	 if [ "$$installed" != "$$declared" ]; then \
-	   echo "install-mcp FAILED: the installed binary reports $$installed and this source" >&2; \
-	   echo "tree declares $$declared. Something staged a build other than this one." >&2; \
-	   exit 1; \
-	 fi; \
 	 echo ""; \
-	 echo "walk-mcp $$installed installed at $(BINDIR)/walk-mcp"
+	 echo "Proving the gate a consumer actually reads — Pixel's skill section 8.5"; \
+	 echo "runs exactly this, and this is the command that exited 1 under #729:"; \
+	 echo "  walk contract --expect $$declared"; \
+	 $(BINDIR)/walk contract --expect $$declared
+	@echo ""
+	@echo "A LOWERED --expect IS NOT A FIX. #729 forbids it in terms: the gate"
+	@echo "reporting a mismatch is the gate working. Stage the current build."
+
+# Can the install check fail? Run before trusting it to pass.
+install-check:
+	./.github/stage-binary.sh --selftest
+
+install-mcp: release
+	./.github/stage-binary.sh walk-mcp $(MCP) $(BINDIR)
 	@echo ""
 	@echo "A REGISTERED SERVER IS ALREADY RUNNING FROM THE OLD BINARY."
 	@echo "  A stdio MCP server is spawned once at session start, so this file does not"
