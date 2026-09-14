@@ -48,6 +48,33 @@ so in terms. This checks BOTH DIRECTIONS: while `coach.verdict` sits in
 notImplemented the instructions must state the absence; when it leaves, they
 must stop stating it. Neither half can drift alone.
 
+WHAT THIS CHECK MISSED, AND MANDATED - ADDED 2026-09-13, TASK #736.
+
+The 0.5.0 string served "THE VERDICT IS NOT AVAILABLE IN THIS BUILD AND EVERY
+RESULT SAYS SO... Walk ships none, so each scan returns `coaching.available:
+false`". MEASURED on a host with Pixel's set installed: `walk_contract` reports
+`coach.available: true`, criteria 1.2.0, 9 rules. The front door was telling
+every consumer its coaching was dark at the moment it was lit - the 0.4.1 defect
+with its sign reversed, and with the same consequence, since a consumer told the
+verdict is unavailable does not ask for one.
+
+THIS CHECK PASSED ON IT, AND COULD NOT HAVE DONE OTHERWISE. Assertion 4 ties the
+served absence to `coach.verdict` being in notImplemented, which is BUILD state -
+do criteria SHIP inside Walk - and satisfied itself with the tokens
+"coaching.available" and "false" appearing anywhere. Whether a verdict RENDERS is
+HOST state, decided by whether a set is installed at
+~/Library/Application Support/Walk/criteria.json or named in WALK_CRITERIA. Build
+state cannot settle host state, so the check was structurally blind to the
+defect - AND WORSE, IT REQUIRED THE SENTENCE THAT CARRIED IT. A control that
+mandates the defect is not a weak control; it is the wrong control, and that is
+the finding worth more than the fix.
+
+Assertion 4b is the repair: while the absence is stated it must be stated
+CONDITIONALLY and the host mechanism must be named, with the env key DERIVED from
+`Criteria.environmentKey` rather than retyped, and the universal forms named
+literally in FORBIDDEN alongside the doctrine #513 retired. The asymmetry is the
+same one the rest of this file uses.
+
 usage: check-doctrine.py <path to walk-mcp> [<path to walk>]
        check-doctrine.py --selftest
 """
@@ -72,7 +99,24 @@ FORBIDDEN = [
     "judgment is the operator's",
     "every frame measured; none judged",
     "walk sorts and flags",
+    # #736, 2026-09-13: the same suppression with its sign reversed. These are
+    # UNIVERSAL claims about host state, and a host with a criteria set installed
+    # makes each of them false while the build is unchanged.
+    "the verdict is not available in this build and every result says so",
+    "every result says so",
+    "walk ships none, so each scan returns",
+    "each scan returns `coaching.available: false`",
+    "every scan returns `coaching.available: false`",
+    "every scan reports `coaching.available = false`",
 ]
+
+# The word that makes the absence a CONDITION rather than a universal. One of
+# these must appear near the absence claim; they are ordinary English, not a
+# doctrine copy, which is why naming them here is not an eighth copy.
+CONDITIONAL_MARKERS = ["only where", "only when", "unless", "until a criteria set is installed",
+                       "where no matching criteria set", "if no criteria set"]
+
+CRITERIA_SWIFT = REPO / "Sources" / "WalkKit" / "Criteria.swift"
 
 # Source surfaces that must not carry the retired doctrine in CODE. Comments are
 # exempt: Server.swift, Coaching.swift and ProofSheetView.swift all quote the old
@@ -115,6 +159,17 @@ def forward_question() -> str:
     m = re.search(r'forwardQuestion = "([^"]+)"', src)
     if not m:
         raise SystemExit("::error::cannot find Coaching.forwardQuestion")
+    return m.group(1)
+
+
+def criteria_environment_key() -> str:
+    """`Criteria.environmentKey`, DERIVED. The served string must name the host
+    mechanism, and if that key is ever renamed this check demands the prose follow
+    rather than going quietly stale - which is the whole failure being repaired."""
+    m = re.search(r'environmentKey = "([^"]+)"', CRITERIA_SWIFT.read_text())
+    if not m:
+        raise SystemExit("::error::cannot find Criteria.environmentKey - the host "
+                         "mechanism this check names must be derived, not retyped.")
     return m.group(1)
 
 
@@ -170,7 +225,7 @@ def verdict_is_declared_absent(walk_binary: str) -> tuple[bool, str]:
 
 
 def check(instructions: dict[str, str], labels: list[str], question: str,
-          absent: bool, contract: str) -> list[str]:
+          absent: bool, contract: str, env_key: str = "WALK_CRITERIA") -> list[str]:
     """Every assertion. Returns the failures; empty means the doctrine holds."""
     fails = []
 
@@ -211,6 +266,31 @@ def check(instructions: dict[str, str], labels: list[str], question: str,
                 f"no verdict renders - but the served instructions do not say so. A "
                 f"string promising verdicts with nothing behind it is the worse of "
                 f"the two errors (#736). State `coaching.available: false` and why.")
+        # 4b. THE ABSENCE MUST BE STATED AS HOST STATE, NOT AS A UNIVERSAL.
+        #     Criteria not SHIPPING is build state; a verdict not RENDERING is
+        #     host state, and a host with a set installed at the default location
+        #     or named in the env key renders one. See the header.
+        if absent and states_absence:
+            if not any(m in n for m in CONDITIONAL_MARKERS):
+                fails.append(
+                    f"{era}: the served instructions state `coaching.available: "
+                    f"false` without a condition. No criteria SHIPPING is build "
+                    f"state; no verdict RENDERING is host state, and a host with a "
+                    f"criteria set installed renders one. Say when it is false, not "
+                    f"that it always is.")
+            if norm(env_key) not in n:
+                fails.append(
+                    f"{era}: the served instructions describe the verdict as "
+                    f"unavailable without naming {env_key} - the mechanism that "
+                    f"makes it available. A consumer told a feature is absent, and "
+                    f"not told how it arrives, reads the absence as permanent.")
+            if "walk_contract" not in n:
+                fails.append(
+                    f"{era}: the served instructions answer the availability "
+                    f"question themselves instead of sending the consumer to "
+                    f"walk_contract, which MEASURES it on this host. This string is "
+                    f"baked into the binary; availability is not.")
+
         if not absent and states_absence:
             fails.append(
                 f"{era}: `coach.verdict` has LEFT notImplemented, so the verdict now "
@@ -258,10 +338,13 @@ def selftest() -> int:
     """
     labels = band_labels()
     question = forward_question()
+    env_key = criteria_environment_key()
     good = (f"Walk is a COACHING tool. Its output is a verdict in three bands: "
             f"{labels[0]}, {labels[1]} (the one change, then \"{question}\"), "
-            f"and {labels[2]}. THE VERDICT IS NOT AVAILABLE IN THIS BUILD: every "
-            f"scan returns `coaching.available: false` with the reason.")
+            f"and {labels[2]}. NO CRITERIA SHIP INSIDE WALK, so a scan returns "
+            f"`coaching.available: false` ONLY WHERE no matching criteria set is "
+            f"installed. Call walk_contract to read it on this host; a set is "
+            f"named in {env_key}.")
     contract = " ".join(labels)
 
     cases: list[tuple[str, dict, bool, str]] = [
@@ -276,13 +359,23 @@ def selftest() -> int:
         ("the old proof-sheet promise returns",
          {"e": good + " Every frame measured; none judged."}, True, contract),
         ("the absence is not stated while the verdict is absent",
-         {"e": good.split(" THE VERDICT")[0]}, True, contract),
+         {"e": good.split(" NO CRITERIA SHIP")[0]}, True, contract),
         ("the absence is still stated after the verdict ships",
          {"e": good}, False, contract),
         ("the forward question is dropped",
          {"e": good.replace(question, "good luck")}, True, contract),
         ("the contract stops naming the bands",
          {"e": good}, True, "no bands here"),
+        # 4b - the #736 defect itself, in each of the three ways it can be made.
+        ("the absence is stated as a universal instead of a condition",
+         {"e": good.replace("ONLY WHERE no matching criteria set is installed",
+                            "and every result says so")}, True, contract),
+        ("the absence is unconditional without the retired wording",
+         {"e": good.replace("ONLY WHERE", "always, and")}, True, contract),
+        (f"the absence is stated without naming {env_key}",
+         {"e": good.replace(env_key, "some other place")}, True, contract),
+        ("the string answers availability instead of sending them to walk_contract",
+         {"e": good.replace("walk_contract", "this text")}, True, contract),
     ] + [
         (f"band {i + 1} ({label!r}) is missing from the served string",
          {"e": good.replace(label, "SOME OTHER BAND")}, True, contract)
@@ -291,7 +384,7 @@ def selftest() -> int:
 
     ok = True
     for name, instructions, absent, contract_text in cases:
-        fails = check(instructions, labels, question, absent, contract_text)
+        fails = check(instructions, labels, question, absent, contract_text, env_key)
         # Case 6 legitimately also trips the band-name assertion when a label is
         # replaced; any failure is a pass here. What matters is that silence is
         # not the answer.
@@ -303,7 +396,7 @@ def selftest() -> int:
 
     # And the happy path must actually pass, or the check is merely a tripwire
     # that fires on everything.
-    clean = check({"e": good}, labels, question, True, contract)
+    clean = check({"e": good}, labels, question, True, contract, env_key)
     # The source sweep runs against the real tree here; report it separately so a
     # genuine source defect is not mistaken for a broken selftest.
     source_only = [f for f in clean if ".swift:" in f]
@@ -336,16 +429,18 @@ def main() -> int:
 
     labels = band_labels()
     question = forward_question()
+    env_key = criteria_environment_key()
     absent, contract = verdict_is_declared_absent(walk)
     instructions = served_instructions(mcp)
 
     print(f"bands (from Coaching.Band.label): {' / '.join(labels)}")
     print(f"forward question: {question!r}")
     print(f"coach.verdict declared absent: {absent}")
+    print(f"host mechanism (from Criteria.environmentKey): {env_key}")
     for era, text in instructions.items():
         print(f"{era}: {len(text)} chars served")
 
-    fails = check(instructions, labels, question, absent, contract)
+    fails = check(instructions, labels, question, absent, contract, env_key)
     if fails:
         for f in fails:
             print(f"::error::{f}")

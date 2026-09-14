@@ -67,27 +67,58 @@ let serverInfo: JSON = .object([
 /// suppressed the feature.
 ///
 /// What it must NOT do in correcting that is claim the verdict works. It does
-/// not yet: no criteria ship (#499, `coach.verdict` in `Walk.notImplemented`),
-/// so every scan reports `coaching.available = false` with the reason. This text
-/// says both halves — the doctrine and the current absence — because either one
-/// alone is a lie of a different kind.
+/// not yet ship criteria (#499, `coach.verdict` in `Walk.notImplemented`). This
+/// text says both halves — the doctrine and the current absence — because either
+/// one alone is a lie of a different kind.
+///
+/// THE SECOND HALF WAS CORRECTED 2026-09-13 (task #736). IT HAD FLIPPED
+/// POLARITY, NOT GONE STALE. It read "THE VERDICT IS NOT AVAILABLE IN THIS BUILD AND
+/// EVERY RESULT SAYS SO... Walk ships none, so each scan returns
+/// `coaching.available: false`" — a universal claim about every result on every
+/// host. MEASURED on this machine 2026-09-13: `walk_contract` reports
+/// `coach.available: true`, criteria 1.2.0, 9 rules, loaded from
+/// ~/Library/Application Support/Walk/criteria.json. So the front door was
+/// telling every consumer its coaching was dark at the moment it was lit, which
+/// is the 0.4.1 defect with its sign reversed: a consumer told the verdict is
+/// unavailable does not ask for one, exactly as before.
+///
+/// THE DISTINCTION THE STRING NOW KEEPS, and it is the same one `coach.verdict`'s
+/// notImplemented reason already drew correctly in 0.5.7: WHETHER CRITERIA SHIP
+/// IS BUILD STATE (they do not; `Coaching.shippedCriteriaJSON` is nil).
+/// WHETHER A VERDICT RENDERS IS HOST STATE (it does, wherever a set is
+/// installed). One string cannot assert the second from the first, and this one
+/// no longer tries — it sends the consumer to `walk_contract`, which measures.
+///
+/// NO VERSION BUMP CAME WITH THIS, DELIBERATELY, and the reason is a real
+/// consequence rather than caution. `Criteria.versionCheck` refuses a set whose
+/// declared engine is not the running one, and the installed set (1.2.0) declares
+/// `walk: 0.5.7`. Moving `Walk.version` would therefore turn this host's coaching
+/// DARK — the exact state this edit exists to stop the string claiming — until
+/// Pixel re-verifies the set against the new engine, which is her judgment under
+/// #499 and not a build step. Nothing in the engine changed here: this is served
+/// prose, and `.github/check-doctrine.py` is what now holds it true.
 let serverInstructions = """
 Walk is a COACHING tool for photographers, not a readout. Its output is a \
 verdict in three bands, each carrying a reason and a lesson for next flight: \
-SELLABLE AS SHOT (good, and why — the craft a buyer is paying for, not the \
+KEEPER (good, and why — the craft a buyer is paying for, not the \
 number); HAS POTENTIAL, WITH THIS (the one specific change, then the question \
 "where did you want to go?", which is required and not decoration); and NOT \
 WORTH THE TROUBLE (why, plainly, so the tell is learned). The goal is sellable, \
 professional output and better photographers.
 
-THE VERDICT IS NOT AVAILABLE IN THIS BUILD AND EVERY RESULT SAYS SO. The bands \
-are rendered from a criteria file that carries Pixel's judgment, and Walk ships \
-none, so each scan returns `coaching.available: false` with the reason and the \
-paths it looked in. Read that field rather than assuming: when a criteria set is \
-installed the same scans come back banded, with the measurements as evidence \
-underneath. Until then the honest answer to "is this frame any good" is that \
-Walk measured it and cannot yet judge it — say that, and do not substitute a \
-verdict of your own invention for the missing one.
+WHETHER A VERDICT RENDERS IS A PROPERTY OF THIS HOST, NOT OF THIS BUILD. NO \
+CRITERIA SHIP INSIDE WALK — the bands are rendered from a criteria file that \
+carries Pixel's judgment, and none is bundled, which is why `coach.verdict` sits \
+in notImplemented. The band shapes, the versioned loader and the evidence trail \
+ARE built. So a scan returns `coaching.available: false` ONLY WHERE NO MATCHING \
+CRITERIA SET IS INSTALLED, with the reason and the paths it looked in — and \
+comes back banded, with the measurements as evidence underneath, where one is. \
+DO NOT ANSWER THAT QUESTION FROM THIS STRING: call walk_contract and read \
+`coach.available`, `coach.criteria.version` and `coach.criteria.source`. A set \
+is installed at ~/Library/Application Support/Walk/criteria.json or named in \
+WALK_CRITERIA. Where it is unavailable the honest answer to "is this frame any \
+good" is that Walk measured it and cannot yet judge it — say that, and do not \
+substitute a verdict of your own invention for the missing one.
 
 The measurements are the EVIDENCE UNDER a verdict, available and not leading. \
 They are good and they are not the answer: a frame that scores badly can be the \
