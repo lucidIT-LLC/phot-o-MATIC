@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check gate gate-check deprecations verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check gate gate-check gate-home deprecations verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -111,7 +111,7 @@ BINDIR := $(HOME)/.local/bin
 # copied from, so nothing on the box could say what build it was.
 #
 # It was not cosmetic. `walk contract --expect 0.5.0` exited 1 (measured), so
-# Pixel's skill section 8.5 version gate read as FAILING — the gate was right,
+# Andy's skill section 8.5 version gate read as FAILING — the gate was right,
 # it was reporting a real drift, and there was no path to fix what it found. And
 # `walk contract` listed ZERO `coach.*` capabilities (measured) while walk-mcp
 # told the same host they were declared: one host, two front doors, two
@@ -142,7 +142,7 @@ install-cli: release
 	@set -e; \
 	 declared=$$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift); \
 	 echo ""; \
-	 echo "Proving the gate a consumer actually reads — Pixel's skill section 8.5"; \
+	 echo "Proving the gate a consumer actually reads — Andy's skill section 8.5"; \
 	 echo "runs exactly this, and this is the command that exited 1 under #729:"; \
 	 echo "  walk contract --expect $$declared"; \
 	 $(BINDIR)/walk contract --expect $$declared
@@ -282,11 +282,17 @@ deprecations:
 #
 # RUN gate-check BEFORE TRUSTING gate, the same discipline as install-check.
 gate-check:
+	./Tools/brand-gate/check-single-home.sh --selftest
 	python3 Tools/brand-gate/run_eval.py
 
-gate:
+gate: gate-home
 	python3 Tools/brand-gate/brand_gate_254.py criteria/walk-criteria.json \
 		--waivers Tools/brand-gate/waivers.txt
+
+# ONE HOME, ENFORCED. The check existed in two places and had already diverged;
+# see the header of the script for what the stale twin was doing.
+gate-home:
+	./Tools/brand-gate/check-single-home.sh
 
 # Everything CI does that can be done locally, in CI's order.
 verify: deprecations test mcp-check contract gate-check plugin-check

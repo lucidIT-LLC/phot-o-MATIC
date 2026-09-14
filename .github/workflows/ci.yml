@@ -233,7 +233,7 @@ jobs:
       # source tree, because the Makefile had `install-mcp` and NO CLI install
       # target. The door with a path stayed current; the door without one
       # drifted two releases, silently, and `walk contract --expect 0.5.0`
-      # exited 1 — making Pixel's skill section 8.5 gate read as failing for a
+      # exited 1 — making Andy's skill section 8.5 gate read as failing for a
       # reason that had nothing to do with the skill.
       #
       # Same shape as the doctrine check above, so it earns its trust the same
@@ -295,6 +295,15 @@ jobs:
       # fixture, that disabling a detector turns that fixture green (so no
       # detector is decorative), and that the #536 re-aim narrowed N2 rather
       # than disabling it.
+      # ONE HOME FIRST. MEASURED 2026-09-13: the check existed in two places,
+      # had diverged, and the stale copy crashed while exiting 0. Proving the
+      # detectors in a copy nobody runs proves nothing, so this is checked
+      # before the suite rather than after it.
+      - name: The brand gate has one home, and that check can fail
+        run: |
+          ./Tools/brand-gate/check-single-home.sh --selftest
+          ./Tools/brand-gate/check-single-home.sh
+
       - name: Brand gate can fail
         run: python3 Tools/brand-gate/run_eval.py
 

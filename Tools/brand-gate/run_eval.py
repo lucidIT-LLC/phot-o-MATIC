@@ -38,14 +38,24 @@ NEGATIVES = [
     ("N4-source-symbol-and-commit.json", "N4"),
     ("N5-manufacturer-and-agency.json", "N5"),
     ("N6-outcome-promise.json", "N6"),
-    ("N7-pixel-criteria.json", "N7"),
+    ("N7-monet-criteria.json", "N7"),
     ("N8a-origin-vacuous.json", "N8"),
     ("N8b-origin-missing.json", "N8"),
 ]
 
 fail = 0
 
-print("=== PART 1: the baseline is actually green, and each negative is refused ===")
+# PART 0 COMES FIRST BECAUSE EVERY OTHER PART IS MEANINGLESS IF THIS ONE FAILS.
+# A suite that proves nine detectors load-bearing, in a copy nobody runs, proves
+# nothing -- which is exactly what the stale twin was doing until 2026-09-13.
+print("=== PART 0: the gate has exactly one home ===")
+import subprocess
+_r = subprocess.run([os.path.join(HERE, "check-single-home.sh")],
+                    capture_output=True, text=True)
+print(_r.stdout.rstrip() or _r.stderr.rstrip())
+fail += 0 if _r.returncode == 0 else 1
+
+print("\n=== PART 1: the baseline is actually green, and each negative is refused ===")
 fs = g.check(os.path.join(F, "P2-clean-n6-corrected.json"))
 ok = not fs
 print(("  PASS-ok " if ok else "  FAIL    ") + "P2-clean-n6-corrected.json (green baseline)"

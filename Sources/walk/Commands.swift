@@ -241,7 +241,7 @@ enum ScanCommand {
 
     /// #513: the verdict is the product and the numbers above are the evidence
     /// under it. This block replaced two lines that said the opposite — "Walk
-    /// sorts and flags; the keep/pitch judgment is the operator's or Pixel's" —
+    /// sorts and flags; the keep/pitch judgment is the operator's or Andy's" —
     /// which was the standing doctrine until the ruling reversed it.
     static func printCoaching(_ r: Coaching.Report) {
         print("")

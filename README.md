@@ -201,7 +201,7 @@ result        13 candidates over 2771 frames at a 1.000% threshold (floor bound)
    ...
 
 COACHING VERDICT  none rendered
-  no criteria file. Decision #499 rules that Pixel's hard-earned logic drives Walk's
+  no criteria file. Decision #499 rules that Andy's hard-earned logic drives Walk's
   verdicts, and #513 that the output is a coaching verdict rather than a readout; the
   criteria file is the mechanism a verdict comes from and Walk does not ship one. The
   measurements are complete and unjudged. Install a criteria set at
@@ -509,7 +509,7 @@ from the numbers — the operator's best-selling photograph fails nearly every
 technical metric taken on it: 66.57% shadow, clipped at both ends, the highest
 noise floor and the smallest file of the set. A tool that discarded his best
 seller because it scored badly would be worse than no tool. So the judgment
-comes from a criteria file carrying Pixel's experience (#499), the measurements
+comes from a criteria file carrying Andy's experience (#499), the measurements
 sit underneath it as evidence, and where there is no criteria file there is no
 verdict and the result says so. This README said the opposite until 0.5.0, and
 so did the MCP server's own instructions string — see the changelog.

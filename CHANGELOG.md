@@ -1,5 +1,72 @@
 # Changelog
 
+## Unreleased — Pixel is gone (decision #538), and the gate stops existing twice
+
+**THE CONFORMANCE CHECK EXISTED IN TWO PLACES AND HAD ALREADY DIVERGED.** This
+is the headline defect and neither Carver nor Smith had named it. MEASURED
+2026-09-13, by running both copies:
+
+| | `Tools/brand-gate/` (Walk) | `artifacts/walk/brand-gate-eval/` (O-Matic) |
+|---|---|---|
+| #536 re-aim of N2 / N8 | yes | **no — pre-ruling detectors** |
+| green baseline fixed | yes | **no — still reports FAIL on its own clean case** |
+| N2 fixture re-aimed | yes | **no — reference only in `origin`** |
+| path under test | `walk-criteria.json` | **`pixel-criteria.json`, renamed out of existence by #775** |
+
+The stale copy raised `FileNotFoundError`, printed a traceback, **and exited 0**.
+A control that crashes and reports success, sitting inside the check built to
+catch exactly that.
+
+**ONE HOME, ENFORCED MECHANICALLY.** The Walk repository is the home: the gate
+runs in Walk CI, the artifact under test lives here, and a plugin consumer can
+run it. The O-Matic path now holds a stub that **refuses with exit 2** rather
+than an empty directory (which invites re-creation) or a README (which nobody
+executes). `Tools/brand-gate/check-single-home.sh` enforces it and is **proven
+able to fail in 7 cases**, including the subtle one — the stub replaced by
+something that exits 0, which is how a second copy returns without adding a
+file. It runs as PART 0 of the suite, before anything else, because proving nine
+detectors load-bearing in a copy nobody runs proves nothing.
+
+Where the estate path does not exist (a CI runner) the check says **"not
+evaluated"** rather than "ok". A check that is vacuous where it runs must not
+report the same word as a check that passed.
+
+**THE N7 FIXTURE IS RENAMED AND ITS ASSERTION IS UNCHANGED.**
+`N7-pixel-criteria.json` → `N7-monet-criteria.json`. N7 reads
+`os.path.basename()`, so a fixture renamed to carry no roster name at all would
+have stopped reproducing its own defect — the same trap that had already
+disarmed the N2 fixture. Using a different roster name is also a stronger test:
+it proves N7 catches roster names generally, not one hard-coded string.
+
+**`cp` OVER A MACH-O IN PLACE GETS IT SIGKILLED, and this had been latent in
+every staging path.** Found while restaging after the rename. MEASURED, isolated
+in three runs: `cp` over the existing binary with CHANGED content → `--version`
+exits 137; `rm -f` then `cp` → exits 0; `cp` again with now-identical content →
+exits 0. The kernel caches a signature validation against the vnode, and new
+bytes in the same inode leave that cache describing a binary that is no longer
+there. It fires on every real re-stage after a source edit and never on the
+re-run someone does to reproduce it. THE FAILURE WORE THE WRONG NAME: the check
+reported "does not report a version", which reads as a broken build — the build
+product printed its version correctly throughout. Fixed in
+`.github/stage-binary.sh`, so all three front doors get it at once.
+
+**PIXEL → ANDY ACROSS THE REPOSITORY (decision #538).** The operator's rule was
+the test for every hit: *"the only part of pixel that survives is the logic we
+had in it."* The logic survives untouched — the nine rules and their ordering,
+the thresholds, `luminanceIsNotLightning` and its measured numbers, and the
+recorded retraction of `residual-glow-after-the-strike`. The name does not,
+where it is authorship or voice. 26 attributions changed, including every string
+served through `walk_contract` and the `walk-mcp` instructions a host reads
+before it picks a tool.
+
+ONE DISTINCTION DECIDED EVERY HIT, and it is mechanical: `Pixel N.N.N` and
+`Pixel §X` are CITATIONS to a specific versioned document, and renaming one
+makes it point at nothing, so they are LEFT. Bare `Pixel` / `Pixel's` is
+authorship, and becomes Andy. Per #421, retirement is a state rather than a
+delete: changelog history and commit messages describing what shipped under the
+old name stay exactly as they are.
+
+
 ## Unreleased — Walk becomes the plugin (decision #534, phase 1)
 
 **THE REPOSITORY ROOT IS NOW THE PLUGIN ROOT.** `.mcp.json`,

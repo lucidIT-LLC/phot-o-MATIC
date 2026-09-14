@@ -94,7 +94,7 @@ let serverInfo: JSON = .object([
 /// declared engine is not the running one, and the installed set (1.2.0) declares
 /// `walk: 0.5.7`. Moving `Walk.version` would therefore turn this host's coaching
 /// DARK — the exact state this edit exists to stop the string claiming — until
-/// Pixel re-verifies the set against the new engine, which is her judgment under
+/// Andy re-verifies the set against the new engine, which is his judgment under
 /// #499 and not a build step. Nothing in the engine changed here: this is served
 /// prose, and `.github/check-doctrine.py` is what now holds it true.
 let serverInstructions = """
@@ -108,7 +108,7 @@ professional output and better photographers.
 
 WHETHER A VERDICT RENDERS IS A PROPERTY OF THIS HOST, NOT OF THIS BUILD. NO \
 CRITERIA SHIP INSIDE WALK — the bands are rendered from a criteria file that \
-carries Pixel's judgment, and none is bundled, which is why `coach.verdict` sits \
+carries Andy's judgment, and none is bundled, which is why `coach.verdict` sits \
 in notImplemented. The band shapes, the versioned loader and the evidence trail \
 ARE built. So a scan returns `coaching.available: false` ONLY WHERE NO MATCHING \
 CRITERIA SET IS INSTALLED, with the reason and the paths it looked in — and \

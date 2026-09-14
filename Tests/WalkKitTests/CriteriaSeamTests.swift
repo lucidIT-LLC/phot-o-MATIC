@@ -45,7 +45,7 @@ private func criteriaJSON(walk: String, version: String = "1.0.0") -> String {
       "criteria": {
         "version": "\(version)",
         "walk": "\(walk)",
-        "owner": "WalkKit test fixture — NOT photographic judgment, and not Pixel's",
+        "owner": "WalkKit test fixture — NOT photographic judgment, and not Andy's",
         "established": "2026-09-12",
         "note": "Fixture for the defaultLocation seam. One rule, enough to load."
       },

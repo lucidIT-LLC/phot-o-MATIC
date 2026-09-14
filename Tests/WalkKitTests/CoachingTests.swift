@@ -34,7 +34,7 @@ private func candidate(_ frame: Int,
 }
 
 /// A minimal well-formed criteria set. Deliberately NOT photographic judgment —
-/// the reasons are fixture text, and the real ones are Pixel's under #499.
+/// the reasons are fixture text, and the real ones are Andy's under #499.
 private func criteriaJSON(walk: String = Walk.version,
                           rules: String) -> String {
     """
@@ -55,7 +55,7 @@ private let sellableRule = """
       "id": "fixture-sellable",
       "band": "sellableAsShot",
       "when": [{ "measurement": "vision.lightning", "op": "atLeast", "value": 0.5 }],
-      "reason": "fixture reason standing in for Pixel's craft language",
+      "reason": "fixture reason standing in for Andy's craft language",
       "origin": "fixture, CoachingTests.swift",
       "nextFlight": "fixture next-flight lesson"
     }

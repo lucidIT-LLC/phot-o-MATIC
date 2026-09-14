@@ -500,7 +500,7 @@ enum Tools {
             and which half of it bound. "Nothing found" is returned as an answer, \
             not an empty result. Then RENDERS THE COACHING VERDICT over those \
             measurements — three bands, each with a reason and a next-flight \
-            lesson (#513) — from the criteria file that carries Pixel's judgment. \
+            lesson (#513) — from the criteria file that carries Andy's judgment. \
             No criteria ship with Walk, so read `coach.available`: when it is \
             false the result says why, the candidates are measured and unjudged, \
             and no band has been assigned to anything.

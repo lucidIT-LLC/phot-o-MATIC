@@ -25,7 +25,7 @@ import Foundation
 /// them.
 ///
 /// WHERE THE JUDGMENT COMES FROM, and it is not from here. Walk owns the SHAPE;
-/// `Criteria` owns the content, and #499 rules that it is Pixel's. This type
+/// `Criteria` owns the content, and #499 rules that it is Andy's. This type
 /// will not invent a band. With no criteria file, `Coach.report` returns
 /// `available == false` with the reason and every place it looked — an absence
 /// reported as an absence, which is the one thing the 0.4.1 sheet did not do.
@@ -95,7 +95,7 @@ public enum Coaching {
     /// exact thing this repository exists to stop going stale — so the two are
     /// TIED BY A TEST: this constant being non-nil while `coach.verdict` is
     /// still declared absent fails the suite, and so does the reverse. Whoever
-    /// ships Pixel's criteria cannot ship them quietly.
+    /// ships Andy's criteria cannot ship them quietly.
     ///
     /// An installed file still wins over this, so an operator can override a
     /// shipped set without rebuilding.
@@ -375,7 +375,7 @@ public enum Coaching {
             }
             if criteria == nil {
                 return """
-                    no criteria file. Decision #499 rules that Pixel's hard-earned logic \
+                    no criteria file. Decision #499 rules that Andy's hard-earned logic \
                     drives Walk's verdicts, and #513 that the output is a coaching verdict \
                     rather than a readout; the criteria file is the mechanism a verdict \
                     comes from and Walk does not ship one. The measurements are \

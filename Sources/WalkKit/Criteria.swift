@@ -7,7 +7,7 @@ import Foundation
 /// ruling: *"it should have pixel hard earned logic tied into it… we need pixel
 /// experience driving it."* A Walk that does not carry her experience "is a
 /// light meter", and 0.4.1 shipped the light meter because there was no
-/// mechanism to produce a judgment. The mechanism is this: Pixel's logic stops
+/// mechanism to produce a judgment. The mechanism is this: Andy's logic stops
 /// being prose containing numbers and becomes DATA Walk executes and her skill
 /// explains. One source of truth, two readers.
 ///
@@ -41,7 +41,7 @@ public struct Criteria: Sendable {
         public let version: String
         /// The Walk this set was written against. A mismatch stops verdicts.
         public let walk: String
-        /// Who owns the judgment in it. Pixel, on this product.
+        /// Who owns the judgment in it. Andy, on this product.
         public let owner: String
         /// When it was established, as the author wrote it.
         public let established: String
@@ -227,7 +227,7 @@ public struct Criteria: Sendable {
     public static let environmentKey = "WALK_CRITERIA"
 
     /// Where Walk looks when nothing is named. Application Support, not the
-    /// bundle: the criteria are Pixel's to publish and the operator's to
+    /// bundle: the criteria are Andy's to publish and the operator's to
     /// install, and a build that carried its own copy would be back to numbers
     /// frozen into code.
     public static var defaultURL: URL {

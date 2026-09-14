@@ -52,7 +52,7 @@ WHAT THIS CHECK MISSED, AND MANDATED - ADDED 2026-09-13, TASK #736.
 
 The 0.5.0 string served "THE VERDICT IS NOT AVAILABLE IN THIS BUILD AND EVERY
 RESULT SAYS SO... Walk ships none, so each scan returns `coaching.available:
-false`". MEASURED on a host with Pixel's set installed: `walk_contract` reports
+false`". MEASURED on a host with Andy's set installed: `walk_contract` reports
 `coach.available: true`, criteria 1.2.0, 9 rules. The front door was telling
 every consumer its coaching was dark at the moment it was lit - the 0.4.1 defect
 with its sign reversed, and with the same consequence, since a consumer told the

@@ -12,7 +12,7 @@
 # copied from, so nothing on the box could even say which build it came from.
 #
 # The consequence was not cosmetic. `walk contract --expect 0.5.0` exited 1
-# (measured), so Pixel's skill section 8.5 version gate read as FAILING for a
+# (measured), so Andy's skill section 8.5 version gate read as FAILING for a
 # reason that had nothing to do with the skill — the gate was working perfectly
 # and reporting a real drift that nobody had a path to fix. And `walk contract`
 # listed ZERO `coach.*` capabilities (measured) while walk-mcp told the same host
@@ -68,6 +68,25 @@ stage() {
 	fi
 
 	mkdir -p "$bindir"
+
+	# REMOVE THE DESTINATION FIRST. `cp` OVER A MACH-O IN PLACE GETS IT SIGKILLED.
+	#
+	# MEASURED 2026-09-13, isolated in three runs on this host:
+	#   cp over the existing binary, content CHANGED -> `--version` exit 137 (SIGKILL)
+	#   rm -f, then cp                               -> exit 0, prints 0.5.7
+	#   cp over again, content now IDENTICAL         -> exit 0
+	#
+	# The kernel caches a code-signature validation against the vnode. Writing new
+	# bytes into the same inode leaves that cache describing a binary that is no
+	# longer there, and macOS kills the process rather than running it. It only
+	# fires when the CONTENT changes, which is to say: on every real re-stage after
+	# a source edit, and never on the re-run someone does to reproduce it.
+	#
+	# THE FAILURE WORE THE WRONG NAME UNTIL IT WAS MEASURED. The check below
+	# reported "does not report a version", which reads as a broken build -- the
+	# build product was fine and printed its version correctly the whole time. The
+	# staging step was the only thing wrong, and the report pointed at the binary.
+	rm -f "$bindir/$name"
 	cp "$built" "$bindir/$name"
 
 	local installed
