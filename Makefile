@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check gate gate-check gate-home deprecations verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -254,6 +254,51 @@ plugin-check:
 	done; \
 	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
 	echo "  plugin payload OK — walk-mcp $$declared, arm64, unquarantined, manifests agree"
+	@./.github/check-payload-size.sh
+
+# WHAT ACTUALLY SHIPS, IN BYTES. 494 MB once passed for 1.4 MB because the
+# number measured (the binary) was not the number delivered (the whole tree).
+payload-size:
+	./.github/check-payload-size.sh
+
+payload-check:
+	./.github/check-payload-size.sh --selftest
+
+# --- the Xcode surface ------------------------------------------------------
+#
+# ONE THING TO OPEN: Walk.xcworkspace at the repository root. It carries
+# App/Walk.xcodeproj and the root Swift package, so WalkKit, walk, walk-mcp, the
+# app and the tests are all in one window.
+#
+# SYMROOT AND OBJROOT ARE PASSED EXPLICITLY AND THEY ARE LOAD-BEARING.
+# MEASURED 2026-09-14: this machine carries a GLOBAL Xcode preference
+#   IDEBuildLocationStyle = Custom, IDECustomBuildLocationType = RelativeToWorkspace
+# so every workspace builds into <workspace>/Build. For this repository that is
+# BOTH inside ~/Documents — an iCloud File Provider domain, where codesign
+# refuses and the failure reads as "the bundle's executable couldn't be located"
+# — AND inside the published plugin root. One preference, two hazards.
+#
+# PROVEN BOTH DIRECTIONS, same command, same tree:
+#   without SYMROOT -> ** TEST FAILED **, 0 tests run, bundle would not load
+#   with SYMROOT    -> ** TEST SUCCEEDED **, 142 tests in 223 s
+#
+# A workspace-level WorkspaceSettings.xcsettings does NOT override it for
+# xcodebuild — measured, it silently no-opped and Build/ came straight back.
+# That file is still committed because it steers the Xcode GUI, but it is not
+# what makes these targets safe. THIS IS.
+XCODEOUT := $(SCRATCH)-xcode
+
+xcode-build:
+	xcodebuild build -workspace Walk.xcworkspace -scheme WalkKit \
+		-destination 'platform=macOS' -derivedDataPath $(XCODEOUT) \
+		SYMROOT=$(XCODEOUT)/Products OBJROOT=$(XCODEOUT)/Intermediates
+
+xcode-test:
+	WALK_TEST_WATCHDOG_SECONDS=120 xcodebuild test -workspace Walk.xcworkspace \
+		-scheme WalkKitTests -destination 'platform=macOS' \
+		-derivedDataPath $(XCODEOUT) \
+		SYMROOT=$(XCODEOUT)/Products OBJROOT=$(XCODEOUT)/Intermediates
+	@./.github/check-payload-size.sh
 
 # Every deprecation in the build, against the reasoned allowlist. Fails on a new
 # one AND on a stale entry. See .github/deprecations-allowed.txt.
@@ -295,7 +340,7 @@ gate-home:
 	./Tools/brand-gate/check-single-home.sh
 
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations test mcp-check contract gate-check plugin-check
+verify: deprecations test mcp-check contract gate-check plugin-check payload-check payload-size
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"

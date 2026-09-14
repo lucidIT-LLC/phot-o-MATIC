@@ -381,6 +381,52 @@ The measurements stay, underneath. #513 kept them deliberately: removing them
 would make the coach unfalsifiable. Each verdict lists the value it read and the
 threshold it was tested against.
 
+## The Xcode surface — development only, NOT how Walk ships
+
+Open **`Walk.xcworkspace`** at the repository root. One window carries
+`App/Walk.xcodeproj` and the root Swift package, so `WalkKit`, `walk`,
+`walk-mcp`, the app and the tests are all visible and buildable together.
+
+**THIS IS A DEVELOPMENT SURFACE AND NOTHING ELSE. WALK SHIPS AS AN o-MATIC
+PLUGIN.** Decision #534 rules that, and it SUPERSEDED decision #508's
+app-bundle mechanism in terms: an app cannot register its own MCP server, and
+that install story is WITHDRAWN. The presence of an Xcode project here is not
+evidence for it and must never be read as a route back to it — if a later
+session finds this workspace and reasons "we could ship the .app", the answer is
+already recorded and it is no.
+
+**BUILD PRODUCTS MUST NOT LAND IN THIS REPOSITORY, AND ON THIS MACHINE THEY
+TRY TO.** MEASURED 2026-09-14: a global Xcode preference
+(`IDEBuildLocationStyle = Custom`, `IDECustomBuildLocationType =
+RelativeToWorkspace`) sends every workspace's products to `<workspace>/Build`.
+Here that is both inside `~/Documents` — an iCloud File Provider domain, where
+codesign refuses and the failure reads as *"the bundle's executable couldn't be
+located"* — and inside the published plugin root. One preference, two hazards.
+
+Proven both directions, same command, same tree:
+
+| | result |
+|---|---|
+| `xcodebuild test` without `SYMROOT` | **TEST FAILED**, 0 tests run, bundle would not load |
+| `xcodebuild test` with `SYMROOT` outside iCloud | **TEST SUCCEEDED**, 142 tests in 223 s |
+
+So use the Makefile targets, which pass `SYMROOT`/`OBJROOT` explicitly:
+
+```
+make xcode-build     # WalkKit via the workspace, products outside iCloud
+make xcode-test      # the full suite from Xcode: 142 tests, ~210 s
+```
+
+`Walk.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings` is committed to
+steer the Xcode GUI toward the same place, but **it is not what makes these safe**
+— measured, it does not override the global preference for `xcodebuild` and
+silently no-opped. The Makefile is the control.
+
+```
+make payload-size    # what each install path actually carries, in bytes
+make payload-check   # prove that assertion can fail (5 cases)
+```
+
 ## Build
 
 ```

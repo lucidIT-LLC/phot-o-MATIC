@@ -13,3 +13,23 @@ xcuserdata/
 # Python bytecode from the brand-gate check.
 __pycache__/
 *.pyc
+
+# --- Xcode, and why each line is here -------------------------------------
+#
+# MEASURED 2026-09-14: this machine carries a GLOBAL Xcode preference
+#   IDEBuildLocationStyle = Custom, IDECustomBuildLocationType = RelativeToWorkspace
+# so EVERY workspace builds into <workspace>/Build. For this repo that is
+# ~/Documents (an iCloud File Provider domain, where codesign refuses) AND the
+# published plugin root. One setting, both hazards. `make xcode-test` passes
+# SYMROOT/OBJROOT explicitly so the command line never depends on it.
+Build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+# Index stores and module caches, if a stray build ever drops them in-tree.
+*.index-build/
+ModuleCache.noindex/
+Intermediates.noindex/
