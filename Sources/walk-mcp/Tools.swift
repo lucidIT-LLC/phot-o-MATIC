@@ -434,9 +434,9 @@ private func clipJSON(_ r: ClipScan.Result, maxCandidates: Int,
             // reproduce it and filed the engine as broken. Both figures were
             // right; they are different quantities. Clip 0012 frame 2347 is
             // +36.03% in this pinned linear space and +6.02% on the Y plane;
-            // frame 2388 is +3.69% here and +0.79% there — so the ratio is not
+            // frame 2388 is +3.69% here and +0.87% there — so the ratio is not
             // even constant and no single multiplier converts between them.
-            "relativeRiseMeasuredIn": .string("\(VideoReader.workingColorSpaceName), pinned. `ciLuma`, `baseline`, `delta`, `relativeRise` and `relativeRisePercent` are all measured in this LINEAR space. `yMean` and `yMax` are gamma-encoded 10-bit Y-plane code values. The two are not comparable and no fixed factor converts between them: clip 0012 frame 2347 is +36.03% linear against +6.02% on the Y plane, and frame 2388 is +3.69% against +0.79%."),
+            "relativeRiseMeasuredIn": .string("\(VideoReader.workingColorSpaceName), pinned. `ciLuma`, `baseline`, `delta`, `relativeRise` and `relativeRisePercent` are all measured in this LINEAR space. `yMean` and `yMax` are gamma-encoded 10-bit Y-plane code values. The two are not comparable and no fixed factor converts between them: clip 0012 frame 2347 is +36.03% linear against +6.02% on the Y plane, and frame 2388 is +3.69% against +0.87%. Both Y-plane figures are over the detector's own local-median baseline; 2388 against frame 2387 alone is +0.79%, which is a different baseline rule and not one the engine applies."),
         ]),
         "detector": detectorJSON(r.detection),
         "verdict": .string(r.verdict),
@@ -478,7 +478,7 @@ private func inlineImages(from candidates: [ClipScan.Candidate], count: Int) -> 
 
 enum Tools {
 
-    static let all: [Tool] = [scan, scanFolder, segments, grade, contract]
+    static let all: [Tool] = [scan, scanFolder, proofSheet, segments, grade, contract]
 
     // MARK: walk_scan
 
@@ -645,6 +645,157 @@ enum Tools {
                 return .failure("Cancelled.")
             } catch {
                 return .failure("folder scan failed: \(error)")
+            }
+        })
+
+
+    // MARK: walk_proof_sheet
+
+    /// JSON FOR THE SHEET IS BUILT IN WalkKit, NOT HERE, and that is deliberate
+    /// even though every other tool in this file assembles its own payload.
+    /// `ProofSheet` has to serialize the manifest to disk anyway — the artifact
+    /// is the manifest — so a second encoder here would be two descriptions of
+    /// one document, drifting apart the moment a field is added. This handler
+    /// parses arguments and hands back what the engine wrote.
+    static let proofSheet = Tool(
+        name: "walk_proof_sheet",
+        title: "Time-sampled proof sheet",
+        description: """
+            "What is in this folder?" Emit a TIME-SAMPLED proof sheet over mixed \
+            media: every still is one cell, every clip is a strip of frames spaced \
+            evenly across its whole duration (12 by default), tone-mapped for \
+            display and written as JPEGs, described by one manifest.json. \
+            DISTINCT FROM walk_scan, which returns the frames a luminance detector \
+            flagged and returns nothing at all for a clip whose light never \
+            changes: this samples time, so every clip produces a picture of its \
+            arc. Each cell carries its frame index, timecode and seconds; each \
+            item carries dimensions, fps, duration, codec and transfer function, \
+            and for a DJI clip with a sibling .SRT the shutter and ISO \
+            DISTRIBUTION over the whole file plus a 180-degree shutter comparison \
+            against 1/(2 x fps). Every cell also carries a tiny blurred \
+            placeholder as an inline data URI, and the manifest is written before \
+            any pixels are decoded and rewritten as cells land, so a viewer can \
+            lay the sheet out immediately and watch it resolve — read `status`, \
+            which is "sampling" until it is "complete". WALK EMITS THE DATA AND \
+            NOT A PAGE: there is no HTML here. IT DISPLAYS AND MEASURES AND DOES \
+            NOT JUDGE — no band, no rank, no keep/pitch, and the shutter check is \
+            a comparison to a named convention rather than a verdict on the \
+            footage. The coaching verdict is walk_scan's, from the criteria file.
+            """,
+        inputSchema: schema([
+            "path": str("Absolute path to a folder, or to a single video or still file."),
+            "paths": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+                "description": .string("Several folders or files at once. Use instead of path, or alongside it."),
+            ]),
+            "out_dir": str("Where the cells and manifest.json are written. Defaults to a Walk folder under the user's Caches directory, named after the first input — a cache and not a temp directory, so the paths are still valid when the viewer reads them back."),
+            "frames_per_clip": int("Frames sampled per clip, spaced evenly across the whole duration and each centered in its own slice — so no sample is frame 0, where a drone is still settling. Stills are always one cell.", default: 12),
+            "cell_width": num("Longest edge of a sharp cell JPEG, in pixels.", default: 900),
+            "placeholder_width": num("Longest edge of the inline blurred placeholder, in pixels. Kept tiny because it is carried as a base64 data URI on every cell in the manifest.", default: 20),
+            "jpeg_quality": num("JPEG quality for the sharp cells, 0 to 1.", default: 0.72),
+            "placeholders": bool("Emit the placeholder pass. Off skips it: the sheet is then one pass and faster overall, and it loses the progressive fill that is the reason this exists.", default: true),
+            "recursive": bool("Descend into subfolders. Off by default, for the same reason walk_scan_folder is: a recursive default is how a sheet quietly becomes a hundred times longer than expected.", default: false),
+            "max_items": int("Stop after this many items, clips and stills together."),
+        ]),
+        readOnly: false,
+        handler: { a in
+            var inputs = [URL]()
+            if let p = a["path"]?.stringValue { inputs.append(URL(fileURLWithPath: p)) }
+            if let list = a["paths"]?.arrayValue {
+                inputs.append(contentsOf: list.compactMap(\.stringValue).map { URL(fileURLWithPath: $0) })
+            }
+            guard !inputs.isEmpty else { return .failure("walk_proof_sheet needs path or paths") }
+
+            let name = inputs[0].lastPathComponent.isEmpty ? "sheet" : inputs[0].lastPathComponent
+            let out = a["out_dir"]?.stringValue.map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? ProofSheet.Options.defaultDirectory(name: name)
+            var options = ProofSheet.Options(outputDirectory: out)
+            if let n = a["frames_per_clip"]?.intValue {
+                guard n >= 1, n <= 60 else { return .failure("frames_per_clip must be between 1 and 60") }
+                options.framesPerClip = n
+            }
+            if let w = a["cell_width"]?.doubleValue {
+                guard w >= 64, w <= 3840 else { return .failure("cell_width must be between 64 and 3840") }
+                options.cellWidth = w
+            }
+            if let w = a["placeholder_width"]?.doubleValue {
+                guard w >= 4, w <= 128 else {
+                    return .failure("placeholder_width must be between 4 and 128 — it is carried inline on every cell, so a large one is multiplied by the whole sheet")
+                }
+                options.placeholderWidth = w
+            }
+            if let q = a["jpeg_quality"]?.doubleValue {
+                guard q > 0, q <= 1 else { return .failure("jpeg_quality must be above 0 and at most 1") }
+                options.jpegQuality = q
+            }
+            options.placeholders = a["placeholders"]?.boolValue ?? true
+            options.recursive = a["recursive"]?.boolValue ?? false
+            if let cap = a["max_items"]?.intValue {
+                guard cap > 0 else { return .failure("max_items must be positive") }
+                options.maximumItems = cap
+            }
+
+            do {
+                let sheet = try await ProofSheet.run(inputs, options: options)
+                // THE MANIFEST IS THE ARTIFACT AND IT IS NOT INLINED. MEASURED on
+                // the operator's DJI folder: 96 cells, each carrying a base64
+                // placeholder, is a manifest of roughly 90 KB — and the cells it
+                // describes are hundreds of kilobytes each. Returning a path is
+                // the same decision thumbnails took in 0.4.0 and for the same
+                // reason: the conversation would die before the operator saw
+                // anything. What comes back is where to look and what was
+                // measured getting there.
+                return .ok(.object([
+                    "walk": .string(Walk.version),
+                    "manifest": .string(sheet.manifest.path),
+                    "directory": .string(sheet.directory.path),
+                    "status": .string("complete"),
+                    "verdict": .string(sheet.verdict),
+                    "totals": .object([
+                        "items": .int(sheet.items.count),
+                        "clips": .int(sheet.items.filter { $0.kind == .clip }.count),
+                        "stills": .int(sheet.items.filter { $0.kind == .still }.count),
+                        "cells": .int(sheet.cellCount),
+                        "cellsRendered": .int(sheet.readyCells),
+                        "cellsFailed": .int(sheet.failedCells),
+                        "itemsUnreadable": .int(sheet.items.filter { $0.error != nil }.count),
+                    ]),
+                    "search": .object([
+                        "foldersSearched": .array(sheet.found.directoriesSearched.map { .string($0.path) }),
+                        "skipped": .array(sheet.found.skipped.map {
+                            .object(["name": .string($0.url.lastPathComponent),
+                                     "reason": .string($0.reason)])
+                        }),
+                        "nothingToSheet": .bool(sheet.found.foundNothing),
+                    ]),
+                    "timings": .object([
+                        "metadataSeconds": .double(sheet.metadataSeconds),
+                        "placeholderSeconds": .double(sheet.placeholderSeconds),
+                        "sharpSeconds": .double(sheet.sharpSeconds),
+                        "totalSeconds": .double(sheet.totalSeconds),
+                    ]),
+                    "shutter": .array(sheet.items.compactMap { item in
+                        guard let s = item.shutter else { return nil }
+                        return .object([
+                            "name": .string(item.url.lastPathComponent),
+                            "medianDenominator": .double(s.medianDenominator),
+                            "oneEightyDenominator": .double(s.oneEightyDenominator),
+                            "stopsFromOneEighty": .double(s.stopsFromOneEighty),
+                            "withinTolerance": .bool(s.withinTolerance),
+                            "impliedShutterAngle": .double(s.impliedShutterAngle),
+                        ])
+                    }),
+                    "judgment": .object([
+                        "rendered": .bool(false),
+                        "note": .string("A proof sheet DISPLAYS and MEASURES. Nothing here is banded, ranked, scored or sorted by interest, and the shutter comparison is a measurement against the 180-degree convention rather than a ruling on the footage. Walk's coaching verdict comes from walk_scan against a criteria file (#499, #513) and is a different call."),
+                    ]),
+                    "note": .string("Read manifest.json for the whole sheet: per item the dimensions, fps, duration, codec, transfer function, tone map applied and DJI telemetry distribution; per cell the frame index, timecode, seconds, sharp file path and an inline blurred placeholder. `status` is \"sampling\" while cells are still landing and \"complete\" when every cell that will exist is described."),
+                ]))
+            } catch is CancellationError {
+                return .failure("Cancelled.")
+            } catch {
+                return .failure("proof sheet failed: \(error)")
             }
         })
 

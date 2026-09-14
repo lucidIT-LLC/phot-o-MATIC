@@ -81,7 +81,7 @@ private func load(_ json: String) throws -> Criteria {
 
 @Test func thereAreExactlyThreeBandsAndTheyCarryTheOperatorsWords() {
     #expect(Coaching.Band.allCases.count == 3)
-    #expect(Coaching.Band.sellableAsShot.label == "SELLABLE AS SHOT")
+    #expect(Coaching.Band.sellableAsShot.label == "KEEPER")
     #expect(Coaching.Band.hasPotentialWithThis.label == "HAS POTENTIAL, WITH THIS")
     #expect(Coaching.Band.notWorthTheTrouble.label == "NOT WORTH THE TROUBLE")
 }
@@ -350,10 +350,21 @@ private func verdict(band: Coaching.Band, reason: String = "why it is what it is
 // MARK: - absence, reported as absence
 
 @Test func withNoCriteriaTheReportSaysSoAndNamesWhereItLooked() {
-    // An empty environment and a path that cannot exist: the honest-absence
-    // path, which is the state this build actually ships in.
+    // An empty environment and paths that cannot exist: the honest-absence path.
+    //
+    // `defaultLocation` IS LOAD-BEARING HERE AND WAS ADDED 2026-09-12 AFTER THIS
+    // TEST FAILED. Without it the coach fell through to whatever is installed on
+    // the machine. This passed for weeks because the installed criteria happened
+    // to declare the same version as the build — so the coach was unavailable
+    // for a reason that merely LOOKED like the one asserted below. At Walk 0.5.5
+    // the installed 0.5.0 set was correctly rejected as STALE, that branch
+    // rendered instead, and the three assertions on the absence text failed.
+    // The assertion text was never the defect; reading host state was. See
+    // `Criteria.resolve` and CriteriaSeamTests.
     let coach = Coaching.Coach(explicit: URL(fileURLWithPath: "/nonexistent/walk-criteria.json"),
-                               environment: [:])
+                               environment: [:],
+                               defaultLocation: URL(fileURLWithPath: NSTemporaryDirectory())
+                                   .appendingPathComponent("walk-absent-\(UUID().uuidString).json"))
     #expect(!coach.isReady)
     let report = coach.report(for: [candidate(2388, lightning: 0.9)])
     #expect(!report.available)
@@ -404,21 +415,45 @@ private func verdict(band: Coaching.Band, reason: String = "why it is what it is
     let l = Coaching.luminanceIsNotLightning
     #expect(l.headline.contains("Luminance finds bright flashes"))
     #expect(l.headline.contains("Classification finds lightning"))
-    // The measured pair from #504/#513. If these drift the lesson is teaching
-    // something the engine never measured.
-    #expect(l.detail.contains("36.0%"))
-    #expect(l.detail.contains("0.34"))
-    #expect(l.detail.contains("0.8%"))
-    #expect(l.detail.contains("0.66"))
+    // The measured set from #504/#513, re-measured off the engine under #740.
+    // If these drift the lesson is teaching something the engine never measured.
+    //
+    // THIS TEST CANNOT PROVE THEY CAME FROM THE ENGINE — it compares the prose
+    // to constants written beside it, which is the defect class #740 is about,
+    // one level up. `KnownAnswerTests.theLuminanceLessonQuotesTheEnginesOwnNumbers`
+    // re-derives all five from a scan of clip 0012 and is the real check; it is
+    // conditional on the operator's archive, so this unconditional one stays as
+    // the CI-visible floor and no more than that.
+    #expect(l.detail.contains("+36.03%"))
+    #expect(l.detail.contains("0.3435"))
+    #expect(l.detail.contains("+3.69%"))
+    // The Y-plane figure, and it is the one that was wrong: 0.79% was frame
+    // 2388 against frame 2387 alone, not against the detector's local-median
+    // baseline, which reads +0.8655%.
+    #expect(l.detail.contains("+0.87%"))
+    #expect(!l.detail.contains("0.79%"),
+            "0.79% is a different baseline rule than the engine applies; #740 requires the engine's")
+    #expect(l.detail.contains("0.6616"))
+    // Both spaces named, on a lesson whose entire subject is that the two
+    // numbers are not the same quantity.
+    #expect(l.detail.contains("linear BT.2020"))
+    #expect(l.detail.contains("gamma-encoded"))
     #expect(l.origin.contains("#504"))
     #expect(l.origin.contains("#513"))
+    #expect(l.origin.contains("#740"))
 }
 
 @Test func theLessonIsReportedEvenWhenNoVerdictCanBe() {
     // The lesson is Walk's own measurement, not anybody's taste, so it does not
     // wait on the criteria file.
+    // Pinned away from the installed criteria for the same reason as above: this
+    // asserts a property of the ABSENCE path, so it must not be able to pass
+    // through the stale path instead.
     let report = Coaching.Coach(explicit: URL(fileURLWithPath: "/nonexistent/x.json"),
-                                environment: [:]).report(for: [])
+                                environment: [:],
+                                defaultLocation: URL(fileURLWithPath: NSTemporaryDirectory())
+                                    .appendingPathComponent("walk-absent-\(UUID().uuidString).json"))
+        .report(for: [])
     #expect(!report.available)
     #expect(report.lessons.contains { $0.id == "luminanceIsNotLightning" })
 }

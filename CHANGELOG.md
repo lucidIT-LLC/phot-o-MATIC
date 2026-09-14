@@ -1,5 +1,431 @@
 # Changelog
 
+## Unreleased — Walk becomes the plugin (decision #534, phase 1)
+
+**THE REPOSITORY ROOT IS NOW THE PLUGIN ROOT.** `.mcp.json`,
+`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`,
+`.codex-plugin/plugin.json`, `skills/` and a prebuilt `bin/walk-mcp` are the
+payload a host clones. MEASURED end to end on this machine: `claude plugin
+marketplace add` accepted the repo, `claude plugin install walk@o-matic-walk`
+succeeded, and the host loaded the server and all three skills — 6 tools,
+`walk-mcp 0.5.7`, arm64 Mach-O, no `com.apple.quarantine`. Payload size 1.4 MB.
+
+**PHASE 1 SHIPS THE ENGINE AND NO JUDGMENT.** No criteria set is in the payload,
+so `Coaching.shippedCriteriaJSON` stays nil and the contract is unchanged.
+`coaching.available` remains HOST state and is reported as such.
+
+**`${CLAUDE_PLUGIN_ROOT}`, NOT `${PLUGIN_ROOT}`.** MEASURED against the vendor's
+own plugins reference, which states it in terms: *"Exact variable names:
+CLAUDE_PLUGIN_ROOT (not PLUGIN_ROOT)."* The undocumented spelling does not
+expand, so a host spawns `/bin/sh` on a path starting with a literal dollar sign
+and the plugin reports no tools — which reads as "not configured yet" rather
+than as a bug. `make plugin-check` fails on the wrong spelling, in both
+directions.
+
+**THE LAUNCHER IS A SCRIPT, NOT A BARE BINARY NAME** (task #735). A GUI-launched
+host inherits the minimal system PATH, so a bare name is unresolvable. The
+launcher resolves the plugin root from `$0` rather than trusting the
+environment, enforces the declared macOS 26 / arm64 floor, and refuses a
+quarantined binary by name instead of leaving it to dyld.
+
+**A HOST THAT CANNOT RUN WALK GETS A SENTENCE, NOT SILENCE.**
+`bin/omatic-walk-degraded-server.sh` is a real MCP server that advertises zero
+tools and puts the reason in `instructions`. A spawn that simply dies is
+indistinguishable from a plugin nobody has configured — this factory's most
+repeated defect class, arriving where it costs a support ticket.
+
+**`make stage-plugin` CALLS `.github/stage-binary.sh` AND DOES NOT REIMPLEMENT
+ITS CHECK.** The plugin binary is a third front door, and #729 is precisely what
+happens when a front door has no shared version check. Same script, different
+bindir; `--selftest` still proves all five cases.
+
+**THE #254 BRAND GATE IS IN CI AND IT IS RED ON A REAL VIOLATION** (task #772).
+Smith's conformance check moved to `Tools/brand-gate/`, and his own closing
+caveat is what this closes: the gate stayed design_verified "until it lands in
+CI and something red actually blocks a release."
+
+Two detectors were RE-AIMED under operator ruling #536, which changed what
+counts as a violation. N2 no longer flags an internal reference in `origin` —
+#536: *"the audit trail IS the decision number"* — but still flags one in the
+owner string and in free prose. N8 is inverted: an origin's ANCHOR is now what
+satisfies #499 field 4, and its absence is the defect, with three accepted
+anchors (a ruling, a measurement, or an explicit disclosure that judgment set
+the threshold) because requiring only one of them would force three rules to
+invent provenance they do not have.
+
+Two defects were MEASURED in the suite itself and fixed: the green baseline
+fixture was not green (it trips N6 three times, so the suite had reported RED on
+a clean tree since it was written), and the N2 fixture planted its reference
+only in `origin`, so the re-aim would have left that detector silently untested.
+
+Findings against the shipped criteria set: **53 before, 12 after, 9 unwaived.**
+
+**`criteria/pixel-criteria.json` IS NOW `criteria/walk-criteria.json`** (task
+#775). A retired persona name in a filename bound for a public marketplace repo
+is customer-facing copy. MEASURED: the old name had ZERO references anywhere in
+Sources, Tests, the Makefile, CI or the README, so nothing broke. The documented
+host override path, `~/Library/Application Support/Walk/criteria.json`, is
+untouched and still resolves.
+
+**`criteria.owner` NOW NAMES ANDY AND THE 903-WORD `criteria.note` IS OUT OF THE
+SHIPPED ARTIFACT** (task #770). The note was preserved FIRST, which was Smith's
+binding sequencing control: its text and a migration that lands it in a factory
+row are written and verified byte-identical before the removal ran. The nine
+`origin` fields are BYTE-IDENTICAL — ruling #536 cancelled that rewrite, and a
+test asserts they did not change.
+
+
+## 0.5.7 — the custom Core ML path, because code and tests now stand behind it
+
+**0.5.6 IS SKIPPED.** The operator does not use six in a version number. Noted
+so the gap is not read as a lost release.
+
+**`coreml.custom` MOVED, AND WHAT CHANGED IS NOT THE MEASUREMENT.** The 0.5.5
+reason already recorded that `MLModel.compileModel(at:)` is a runtime API in
+CoreML.framework, that it compiled a custom `.mlmodel` in 16 ms, and that the
+result loaded through `MLModel(contentsOf:)` and `VNCoreMLModel` from a plain
+SwiftPM binary with no Xcode project and no app bundle. That was true then and
+it is true now. The reason also said, in terms, why the capability was staying
+put anyway: *"declaring a capability off the back of a spike, with no code and
+no test behind it, is the drift this contract exists to catch."* `CustomModel`
+and `CustomModelTests` are the code and the tests. The gate was satisfied, not
+lowered.
+
+**IT SHIPS NO MODEL AND NAMES NO SUBJECTS.** Decision #507 records that nobody
+has scoped what Walk should classify on non-storm material, and that scoping is
+the operator's and Andy's. `CustomModel` loads a model the caller supplies and
+takes no position on what is in it. `classify.vision` — Vision's built-in
+1303-identifier taxonomy, no model file — is unchanged and still covers the
+storm case.
+
+**THE FIXTURE IS A KNOWN ANSWER, NOT A TAXONOMY.** 16 KB, two classes (`red`,
+`blue`), CreateML-trained on flat colour tiles, regenerable with
+`Tools/make-known-answer-model.swift`. It is small because it references the OS
+feature extractor rather than embedding one, so unlike `KnownAnswerTests` — which
+needs 780 MB on an external volume and skips without it — this suite runs
+anywhere. Three of its six tests assert REFUSALS: a missing file, a wrong
+extension, and 4 KB of `0x41` named `.mlmodel`. A load path that has only ever
+succeeded is not evidence that it validates anything.
+
+**ONE PACKAGING TRAP, MEASURED, BECAUSE IT WOULD HAVE MADE THE TEST VACUOUS.**
+Declaring the fixture with `resources: [.process("Fixtures")]` makes the build
+system recognise a Core ML model and compile it, so what lands in the bundle is
+`WalkKnownAnswer.mlmodelc` and the `.mlmodel` is gone. The test would then prove
+the BUILD can compile a model, which was never in question, instead of that WALK
+can compile one at runtime, which is the claim. `.copy` carries the bytes
+through untouched.
+
+**`fcpxml.export` DID NOT MOVE, AND ITS REASON GOT NARROWER.** No WalkKit code
+emits FCPXML; segments still come out as `.mov` only. What changed is the
+evidence under the absence. Final Cut Pro 12.3 ships its own DTDs
+(`Interchange.framework/.../FCPXMLv1_0.dtd` through `v1_14.dtd`) — a better
+authority than the published reference page, which is JS-rendered and returns a
+title and no body to a fetch. A five-clip timeline over the operator's own 59.94
+GoPro selects was generated from AVFoundation-measured durations and validated
+clean against the shipped `FCPXMLv1_13.dtd`, with a negative control proving the
+validator can fail. So the format is understood and the writer is still unbuilt,
+which is a much narrower statement than "untouched."
+
+**TWO TESTS WERE REPLACED, NOT DELETED, AND THEY FAILED FIRST.**
+`theCoreMLReasonNoLongerClaimsTheQuestionIsOpen` and
+`coreMLStaysAbsentBecauseNoCodePathLoadsAModel` both failed the moment the
+capability moved — which is them working. Their successors assert the new state
+and keep the three-step history, because the sequence (false premise → corrected
+reason, capability deliberately held back → capability moved once code existed)
+is the lesson.
+
+**BAND 1 IS NOW `KEEPER`. DECISION #527, RECORDED AND NEVER IMPLEMENTED.** The
+operator retired the label SELLABLE AS SHOT; shipping 0.5.7 without this would
+have shipped a name he had already struck. It is a DISPLAY string and the change
+is exactly that wide: `Coaching.Band.label` returns `"KEEPER"`, and the enum case
+is still `sellableAsShot`. The key rename needs a schema change the operator
+deliberately deferred, and propagating half of one is defect #525 — so every rule
+in the criteria file still carries `"band": "sellableAsShot"`, and the JSON
+surfaces already emit the two separately (`band` is the wire key, `label` is the
+display string), which is why the deferral costs a consumer nothing.
+
+**THE BRIEF NAMED FOUR SITES AND A GREP FOUND TEN.** `Coaching.swift` (the
+mapping), `Server.swift` (the MCP instructions every consumer reads on connect),
+`Version.swift` (the `coach.verdict` reason) and the criteria `note` were the
+four. `CoachingTests.swift:84` asserts the literal string and is the gate — it
+failed on the old value, which is it working. The two the brief did not name are
+`README.md`: the band table, and a transcript of `walk contract` output that
+would have started lying the moment the binary changed. Three more are in this
+file, in the 0.5.0 section, and they are LEFT ALONE ON PURPOSE — 0.5.0 did ship
+SELLABLE AS SHOT, and editing a changelog to say otherwise is falsifying the
+record rather than correcting it.
+
+`check-doctrine.py` derives the band labels from `Coaching.Band.label` rather
+than keeping its own copy, so it demanded the served prose follow and its
+selftest now names band 1 as `'KEEPER'` with all ten cases still caught.
+
+**THE CONTRACT CONTRADICTED THE HOST, AND THE HOST WAS RIGHT.** `coach.verdict`'s
+reason ended with *"Every scan therefore reports coaching.available = false with
+this reason"* — flatly, of every scan — two sentences before telling the operator
+to install a criteria set and promising the verdicts would render from it. Both
+could not be true, and on this host `walk contract` was printing
+`coach.available: true` with 9 rules loaded while the same command printed that
+sentence further up. Data reported it.
+
+The fix is a distinction, not a deletion: **`coaching.available` is HOST state**
+and is false only while no matching criteria set is installed; **the
+`notImplemented` entry is BUILD state** and stays until a set ships inside Walk.
+`Coaching.shippedCriteriaJSON` is still `nil` and still tied to that entry by a
+test in both directions, so the entry is correct where it stands — it was the
+prose around it that overreached. A consumer reading the contract was being told
+its coaching was dark at the moment it was lit.
+
+**THE CRITERIA SET WAS RE-VERIFIED AGAINST 0.5.7, NOT BUMPED PAST A RED LIGHT.**
+Walk refuses criteria whose declared engine does not match the running one, so
+Pixel's set — written against 0.5.0 — went dark the moment the build said 0.5.7.
+`make verify`'s own contract step printed the refusal, verbatim: *"the criteria
+file ... was written against Walk 0.5.0 and this build is 0.5.7 ... re-verify the
+set and bump its `walk` field deliberately."* The honest way to satisfy that
+refusal is to earn it, and the header is now `1.2.0` / `0.5.7` with the
+re-verification recorded in the file's own `note`.
+
+What was checked. The nine rules read four selectors — `vision.lightning`,
+`vision.thunderstorm`, `relativeRisePercent`, `yMax` — with two comparisons,
+`atLeast` and `atMost`. Every file that PRODUCES those numbers is byte-identical
+to the 0.5.0 tag: `EventDetector.swift`, `FrameScanner.swift`, `ClipScan.swift`
+and `Classifier.swift` return no diff against `e1db0b2`. `Criteria.swift` does
+differ and the whole of that diff is the `defaultLocation` test seam in
+`resolve` — `Measurement`, `Comparison.holds`, `value(of:on:)` and
+`Coach.firstMatch` are untouched. `VideoReader.swift` also differs, and that one
+mattered enough to check by hand: the change is `StallWatchdog` bookkeeping
+around the decode loop, `armIfRequested()` is a no-op unless
+`WALK_TEST_WATCHDOG_SECONDS` is set, and the `Frame` handed back is byte-for-byte
+the same object built the same way.
+
+**AND IT WAS CHECKED BEHAVIOURALLY, BECAUSE A DIFF IS AN ARGUMENT AND NOT A
+MEASUREMENT.** The installed 0.5.0 engine and the built 0.5.7 engine were run
+over the same clips of the operator's own footage with a rule set proven
+byte-identical between the two headers, and every verdict's frame, band and
+firing rule compared. The units question was asked explicitly, because task #740
+landed between these two versions and #740 was a units defect: every percentage
+in the criteria file is still the LINEAR rise `relativeRise` reports, #740
+changed the PROSE describing those numbers and never the numbers, and `yMax` is
+still a 10-bit code value with a 1023 ceiling — so the 1020 guard in
+`bolt-core-on-the-ceiling` still means what it meant.
+
+## 0.5.5 — the sheet that shows a folder, not the frames a detector flagged
+
+**THE GAP, MEASURED. `app.proofSheet` has existed since 0.3.0 and it shows
+DETECTED CANDIDATES.** That answers "where did the light change in this clip".
+It cannot answer "what is on this card", and the difference is not academic: a
+candidate is a whole-frame luminance rise, so a clip whose light never changes
+produces no candidates and therefore no picture — two of eight GoPro clips did
+exactly that in 0.4.0, honestly, and showed blank. MEASURED 2026-09-12:
+answering "what is worth keeping in this folder" meant leaving Walk entirely and
+hand-writing ffmpeg tile commands, because a TIME-SAMPLED sheet of a whole clip
+did not exist here.
+
+`sheet.timeSampled` is that sheet. Every still is one cell; every clip is a
+strip of N frames (12 by default) spaced evenly across its whole duration, so
+the operator sees the arc of a clip rather than one arbitrary frame.
+
+**`app.proofSheet` did NOT move, and the restraint is the point.** The window it
+names was not changed by this release, so claiming it arrived in 0.5.5 would be
+a false provenance in the one surface built to prevent exactly that. The new
+behaviour is declared under names narrow enough to be true —
+`sheet.timeSampled`, `sheet.progressive`, `sheet.manifest`, `ingest.stills`,
+`telemetry.djiSRT` — which is #507's `ingest.dump` / `ingest.folderScan`
+resolution applied again. `ingest.dump` and `page.bestWorst` stay absent, and
+both reasons now name the sheet that DOES exist, because a one-word denial is
+how `ingest.dump` came to be read as a flat refusal of folder handling.
+`ProofSheetTests` asserts both halves.
+
+**WALK EMITS DATA, NOT A PAGE.** No HTML, no CSS, no styling anywhere in the
+engine. `manifest.json` is the artifact and the viewer is separate — a renderer
+compiled in here would be a second place for the measurements to drift from how
+they are shown.
+
+**Progressive, and measured rather than asserted.** Three passes, and the order
+is the feature: metadata first (the manifest is complete, every cell slot
+present, `ready: false`, before a single pixel is decoded), then a placeholder
+pass, then the sharp cells. The manifest is rewritten ATOMICALLY after every
+item, so a viewer polling it watches the sheet resolve and never reads half a
+document. MEASURED on the operator's own card — `/Volumes/NVMeExt1/Content/
+Photography/DJI_001`, 8 clips, 2 JPG, 1 DNG, 5.8 GB, 99 cells:
+
+```
+t+0.73 s   manifest on disk, 11 items, 99 cells, 0 placeholders, 0 ready
+t+4.5  s   99 placeholders
+t+11.0 s   99 sharp cells, status "complete"
+```
+
+**The placeholder path was chosen by measurement, not by reasoning.** It asks
+the decoder for the nearest sync sample (infinite seek tolerance), which costs
+0.041 s/frame against 0.079 s for an exact frame. The question that mattered was
+how to interpret what comes back, and guessing would have been the
+system-gamma-1.2 error again in a new place. Measured against Walk's own exact
+decode of the same keyframe (450 of `DJI_20260913024928_0001_D.MP4`,
+R52.5 G57.5 B62.0):
+
+| placeholder path | mean | |
+|---|---|---|
+| untagged + Hable curve | R52.4 G58.1 B63.6 | **reproduces the reference** |
+| tagged ITU-R 2100 HLG + Hable | R34.7 G39.1 B43.9 | a second decode of something already decoded |
+| tagged HLG, no curve | R60.8 G68.0 B76.8 | the curve never applied |
+
+The generator hands back LINEAR LIGHT in an untagged buffer, the same state a
+decoded `CVPixelBuffer` arrives in, so what is still owed is the Hable curve and
+nothing else. It is therefore a DIFFERENT FRAME from the sharp cell that replaces
+it, and `placeholderContract.provenance` says so rather than leaving it assumed —
+#740 is what an undocumented correspondence costs.
+
+**DJI telemetry is read as a DISTRIBUTION, never as frame 1.** The obvious
+implementation reads the first subtitle block and reports `iso: 100,
+shutter: 1/240`. The aircraft is still settling there — climbing, gimbal
+levelling, auto-exposure not converged. MEASURED on
+`DJI_20260913024928_0001_D.SRT`, 10,782 samples: the modal shutter is 1/10000
+holding 58.1% of the file, across 12 distinct values from 1/800 to 1/10000. Every
+field is summarized over the whole file and frame 1's value is carried separately
+as `firstSample`, reported and never used, with its distance from the median in
+stops.
+
+**The 180-degree shutter comparison is a MEASUREMENT, not a verdict.** Correct
+shutter is 1/(2 × fps); at 47.952 fps that is 1/96. The operator's two longest
+clips measure a median 1/10000 — **+6.70 stops**, an implied shutter angle of
+1.7° against 180, with **not one sample in either file** inside a half-stop of
+the convention. That is stated with the rule, the tolerance and the share of
+samples inside it, and `isAVerdict: false` next to it, because #499 puts
+judgment in the criteria file and a fast shutter is a deliberate choice Walk does
+not rule on. `theShutterToleranceCanPassAndCanFail` asserts both directions — a
+check that has only ever failed is not a check either.
+
+**IT DISPLAYS AND MEASURES. IT DOES NOT JUDGE.** No band, no rank, no score, no
+keep/pitch, no ordering by interest — stated in the manifest itself
+(`judgment.rendered: false`), in the tool description, in the CLI output and in
+three tests, so a viewer cannot add a verdict Walk did not render and call it
+Walk's.
+
+**A COLLISION FOUND BY RUNNING IT, which is the only way it could have been
+found.** First real run: `DJI_20260517021954_0016_D.DNG` and
+`DJI_20260517021954_0016_D.JPG` are the raw and the JPEG of one shot and share a
+stem, so both cells were written to `DJI_20260517021954_0016_D_c00.jpg`. The
+second overwrote the first, **both reported `ready: true`**, and the manifest
+said 99 cells rendered while 98 files existed. Nothing failed and nothing logged
+— absence indistinguishable from success, in the artifact whose entire job is
+showing the operator what is really on his card. Cell names now carry the source
+extension, with a `used` set as the backstop so the invariant is enforced rather
+than argued for, and three tests cover it. Re-run: 99 declared, 99 unique, 99 on
+disk.
+
+**THE COACHING VERDICT DOES NOT REACH A PHOTOGRAPH, and the contract now says
+so.** `coach.bands`, `coach.criteria` and `coach.evidence` were declared with
+nothing stating they cover clips only — so a consumer reading the contract would
+reasonably conclude Walk can coach a still. That is absence indistinguishable
+from success in the surface built to prevent it, and it is the same defect #513
+recorded when `app.proofSheet` was declared with no statement that the sheet
+does not judge. `coach.stills` is now in `notImplemented` with the whole reason.
+
+THE GAP IS A MISSING PATH, NOT A MISSING RULE, and criteria for stills cannot be
+written until it exists. Verified rather than taken on report: `coach.report`
+reads a `ClipScan.Candidate`; `StillGrade` mentions neither `Candidate` nor
+`Coach`; the CLI's only other route hand-builds a candidate from video findings.
+Of the seven selectors in `Criteria.Measurement`, **exactly one transfers to a
+still with its meaning intact.** `relativeRise`, `relativeRisePercent`, `sigma`
+and `mergedFrames` are each derived from temporal neighbours — a local median
+baseline, a per-clip robust sigma, a count of merged adjacent frames — and a
+photograph has none. `yMean` and `yMax` are 10-bit Y-plane CODE VALUES read off a
+planar YCbCr buffer a still never produces, so reusing those names would be
+#740's units error again. That leaves `vision.<identifier>`.
+
+**MEASURED, and it is why the obvious shortcut is worse than no path at all.** A
+still hand-built as a `Candidate` — the only route that exists today — was banded
+**NOT WORTH THE TROUBLE** by a rule reading `relativeRise atMost 0.01`, because
+the fabricated zero satisfied it. The verdict carried the evidence line
+`relativeRise measured 0.0, required atMost 0.0100, held true`: a photograph
+condemned by a measurement that does not exist for it, with an audit trail that
+looks complete. Kept as a test so the shortcut cannot be taken quietly later.
+Note the contrast in the same measurement: `yMean` came back `nil` and its rule
+correctly did not fire — the "unmeasured is not zero" mechanism already works;
+the four video-only fields are non-optional and so cannot use it.
+
+NOT BUILT, DELIBERATELY. Closing this needs an engine-contract decision that
+belongs to the operator and to #513, not to an implementer: `Verdict` identity is
+frame/timecode/seconds and `frame` runs through all seven `Malformed` cases;
+`ClipScan.Candidate`'s video fields are non-optional so they cannot report
+`unmeasured`; and what a still should be judged ON has not been scoped — the same
+gap `ingest.triage` already records. `page.bestWorst` stays in `notImplemented`
+for the same reason `coreml.custom` did: no code, no tests, no capability entry.
+
+**A test that passed by coincidence, and the seam that ends it.**
+`withNoCriteriaTheReportSaysSoAndNamesWhereItLooked` asserts the ABSENCE branch
+of `Coach.unavailableReason`. It had never tested that branch in isolation: with
+no way to inject the default criteria location, the coach fell through to
+whatever was installed on the machine, and the test passed only because the
+installed set happened to declare the same version as the build. At 0.5.5 the
+installed 0.5.0 set was correctly rejected as STALE, that branch rendered
+instead, and the test failed. **The assertion text was never the defect.**
+
+MEASURED, and it is why `WALK_CRITERIA` was no way out: `Criteria.defaultURL`
+resolves through `FileManager.urls(for: .applicationSupportDirectory, in:
+.userDomainMask)`, which reads the user record from the password database and
+NOT the `HOME` environment variable — proven by overriding `HOME` in a subprocess
+and watching both runs still resolve to the same real path. And `WALK_CRITERIA`
+SELECTS an alternative file; it cannot assert an ABSENCE. So the only way to
+reach "no criteria installed" from a test was to move the operator's live file.
+
+`Criteria.resolve` and `Coach.init` now take `defaultLocation`, defaulted to the
+installed path so no production caller changes. `Resolution` carries the
+location it actually consulted, so the absence message names the path it really
+searched rather than reading `defaultURL` back and printing one it never looked
+at. Seven tests in `CriteriaSeamTests.swift` pin their own location and assert
+ABSENT, PRESENT-BUT-STALE, PRESENT-AND-MATCHING, and PRESENT-BUT-BROKEN as four
+distinct answers that must not collapse into one message.
+
+PROVEN ABLE TO FAIL, three mutations. Making the seam inert (`resolve` ignoring
+the injected location) failed 6 of 8 tests with 18 issues and reproduced the
+original bug exactly. Two tests SURVIVED that mutation, which is itself the
+finding: the stale-path test passed because the operator's installed file
+happens to be stale in the same way — the same coincidence, one level down. So
+it was proven separately, by declaring the fixture at the current version
+(3 issues, including the built-in `staleVersion != Walk.version` guard), as was
+the matching-path test by declaring a version that does not match (3 issues).
+All reverted; no mutation markers remain.
+
+**Task #722 re-measured, and the contract's reason for `coreml.custom` was a
+FALSE PREMISE.** It read "whether a custom .mlmodel compiles and loads without
+Xcode is open." MEASURED 2026-09-12 on macOS 27.0 (26A428), Swift 6.4:
+`MLModel.compileModel(at:)` is a RUNTIME api in `CoreML.framework` — an OS
+framework, not an Xcode tool — and it compiled a custom `.mlmodel` in **16 ms**.
+The result loaded and predicted through `MLModel(contentsOf:)` (pure red in →
+`[1, 0]` out, the fixed weights) and through `VNCoreMLModel` + `VNCoreMLRequest`
+(pure green → `[0, 1]`), from a plain `swiftc` binary with no Xcode project, no
+app bundle and **no deprecation warnings**. A garbage `.mlmodel` was refused, so
+the probe can fail. `coremlc` compiles it too and is not needed.
+
+So nothing puts Xcode in Walk's BUILD path, which is what #722 actually asked
+and what #490/#495 constrain. What remains gated is AUTHORING — `coremltools` is
+not importable in the system `python3` — and that gates making a model, never
+compiling or loading one. **`coreml.custom` stays in `notImplemented`**: no
+shipped code path in WalkKit loads a model, and declaring a capability off the
+back of a spike, with no code and no test behind it, is the drift this contract
+exists to catch. The reason now says all of that, and two tests assert the
+retired sentence cannot come back.
+
+**Also:** `Frame.makeDisplayImage(maxWidth:exposure:context:)` takes a shared
+`CIContext` — the no-argument version built a Metal device and a context per
+call, which is right for one thumbnail and wrong for 99 cells. MEASURED
+0.079 s/frame shared against 0.104 s/frame fresh, the same picture either way.
+`MediaFinder` wraps `ClipFinder` rather than restating the video extension set,
+because a private second copy of it is what #507 cost this repository, and it
+names why a `.LRF` or `.SRT` was skipped instead of silently omitting it.
+`walk sheet` is the CLI front door, because a capability reachable only through
+MCP cannot be run by hand when it misbehaves.
+
+**Known and not fixed here, named rather than left to be discovered:** a clip
+cell carries the Hable filmic curve whether or not the clip is HLG, because the
+sheet uses `Frame.makeDisplayImage` rather than growing a second display path.
+On frame 450 above that renders about 15% darker than a plain managed HLG→sRGB
+conversion — the highlight rolloff doing what it is for — and each item's
+`toneMap` field names exactly what was applied, so a dark cell is readable as a
+transform rather than as the footage. Changing a tested path shared with every
+candidate thumbnail is a separate decision with its own known answers to
+re-measure.
+
 ## Unreleased — task #740: the numbers on the proof sheet now say what they mean
 
 **Four defects in one family: a number printed without the thing that makes it
@@ -56,6 +482,89 @@ scores 0.0044 with a Y max of 945, indistinguishable from a no-event frame. Any
 sane-looking floor throws it away and reports nothing missing. That is the honest
 limit on "classification beats luminance" (#504): it beats it on RANKING what you
 already have, not on RECALL. The slider stays, and it still starts at zero.
+
+### The teaching lesson quoted a number off a baseline rule the engine does not apply
+
+#740's last owed edit, and the edit found a fifth defect of the same family.
+`Coaching.luminanceIsNotLightning` is the one judgment Walk renders without a
+criteria file, on the grounds that it is Walk's OWN MEASUREMENT and not anyone's
+taste. That is a claim about provenance, and nothing checked it.
+
+**MEASURED, whole-clip scan of 0012, 2,771 frames, Y stride 1.** Frame 2347
++36.030% linear / 0.3435, frame 2388 +3.689% linear / 0.6616 — all four
+reproduce exactly. The Y-plane figure does not. The lesson said frame 2388 rose
+**0.8%** and four other surfaces say **0.79%**; against the detector's own
+local-median baseline the engine says **+0.8655%**. 0.79% is frame 2388 divided
+by **frame 2387 alone** — a baseline rule nothing in the engine computes.
+
+**Why it survived.** The number it travelled with agrees under both rules:
+frame 2347 reads +6.02% either way (local median +6.0204%, previous frame
++6.0172%). A pair that looks self-consistent carried one figure off a rule the
+engine does not apply, and no reader could have known which rule was in play
+because neither was named. Same shape as the rest of #740.
+
+The lesson now states both spaces, quotes the engine, and adds the fact that
+makes the point better than any threshold story: **on the gamma-encoded Y plane
+frame 2388 is not a candidate at all** — +0.87% is under the detector's own 1%
+floor, while on the linear plane it is one of 13. It also drops an unverifiable
+claim: "a 6-sigma luminance threshold correctly rejected it as noise" appeared
+exactly once in the repository, nowhere corroborated, against a detector whose
+default is 12σ, and does not reproduce — frame 2388 sits at 147σ linear and 91σ
+on the Y plane against the engine's own robust sigma.
+
+`KnownAnswerTests.theLuminanceLessonQuotesTheEnginesOwnNumbers` re-derives all
+five figures from a scan and judges the prose **in both directions**: a number
+the engine did not measure fails, and a number the engine measured that the
+prose omits fails. Proven able to fail — and the first draft of it could not.
+The detail mentions the Y figure twice, so changing one mention to 0.79% still
+satisfied a `contains` check and the test passed on prose written to be
+rejected. A test that only detects the last wrong copy is the defect it guards,
+one level up.
+
+**Not corrected here, and named rather than left to be found:** `README.md`,
+`Sources/walk/Commands.swift`, `Sources/walk-mcp/Tools.swift` and
+`App/WalkApp/ProofSheetView.swift` all still print +0.79%. They are outside this
+task's scope (#721 is open in two of those files) and each needs the same
+engine-derived treatment.
+
+### The CLI had no install target at all — task #729
+
+**MEASURED on the operator's host:** `walk --version` reported **0.3.0** while
+`walk-mcp --version` reported **0.5.0**, from one source tree. The Makefile had
+an `install-mcp` target and **no install target for the `walk` CLI**. The front
+door with an install path stayed current; the one without it drifted two
+releases, silently. `make clean` deletes the release directory the stale binary
+was copied from, so nothing on the box could say what build it was.
+
+Not cosmetic. `walk contract --expect 0.5.0` **exited 1** (measured), so Pixel's
+skill section 8.5 version gate read as FAILING for a reason that had nothing to
+do with the skill — the gate was right and there was no path to fix what it
+found. And `walk contract` listed **zero `coach.*` capabilities** (measured)
+while walk-mcp told the same host they were declared: one host, two front doors,
+two contracts.
+
+`make install-cli`, and `make install` for both doors in one command, because
+two separate targets leave "did you do the other one?" to memory — which is how
+0.3.0 and 0.5.0 came to sit side by side. #740's check moved out of `install-mcp`
+into `.github/stage-binary.sh`, which both targets call: **that check living in
+one target is what let the other drift, and a copied check can diverge.** It
+keeps #740's two failure modes (blank version, disagreement with
+`Sources/WalkKit/Version.swift`) and adds two the inline version could not
+express — a build that is not there, and a `Version.swift` that declares no
+version. `install-cli` then runs `walk contract --expect <declared>`, the exact
+command Pixel's gate runs, so an install that silently does not update is
+impossible rather than unlikely.
+
+Proven able to fail: `stage-binary.sh --selftest` requires all four failure
+modes to fail and the matching case to pass, wired into CI as "Install check can
+fail" beside the doctrine selftest. **Its own first draft resolved the version
+source at load time**, so the fixture override did nothing and four of five
+cases passed against the real 0.5.0 rather than the fixture — passing for the
+wrong reason, in the thing whose whole job is catching that.
+
+After: `walk` and `walk-mcp` both report 0.5.0, `walk contract --expect 0.5.0`
+exits 0, and `walk contract` lists the `coach.*` entries. **No expected version
+was lowered** — #729 forbids it and it is the defect the band is about.
 
 ### `walk-mcp --version` — the recorded regression did not reproduce
 

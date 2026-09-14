@@ -9,3 +9,7 @@ build/
 App/Build/
 *.xcuserdatad
 xcuserdata/
+
+# Python bytecode from the brand-gate check.
+__pycache__/
+*.pyc

@@ -242,32 +242,71 @@ public struct Criteria: Sendable {
         public let url: URL?
         public let source: String
         public let searched: [String]
+        /// The default location this resolution actually consulted.
+        ///
+        /// CARRIED RATHER THAN RE-DERIVED, because with `defaultLocation`
+        /// injectable a caller that wanted to name the default in a message
+        /// would otherwise read `Criteria.defaultURL` back and print a path that
+        /// was never searched. A resolution that misnames where it looked is
+        /// the same defect as one that does not say at all.
+        public let defaultLocation: URL
         public var found: Bool { url != nil }
     }
 
+    /// Resolve which criteria file to load, in order: the caller's explicit
+    /// path, then `WALK_CRITERIA`, then the default location.
+    ///
+    /// `defaultLocation` IS THE TEST SEAM AND IT WAS ADDED BECAUSE ITS ABSENCE
+    /// MADE A TEST PASS BY COINCIDENCE (2026-09-12).
+    /// `defaultURL` resolves through `FileManager.urls(for:
+    /// .applicationSupportDirectory, in: .userDomainMask)`, which reads the
+    /// user record from the password database and NOT the `HOME` environment
+    /// variable — measured by overriding HOME and watching both runs still
+    /// resolve to the same real path. So there was no way to reach the
+    /// "no criteria installed" state from a test without moving the operator's
+    /// live file, and `WALK_CRITERIA` is no help: it SELECTS an alternative
+    /// file, it cannot assert an ABSENCE.
+    ///
+    /// The consequence was measured, not theorised.
+    /// `withNoCriteriaTheReportSaysSoAndNamesWhereItLooked` asserts the absence
+    /// branch. It passed on the author's machine only because the installed
+    /// criteria happened to declare the same version as the build; when Walk
+    /// went to 0.5.5 the installed 0.5.0 set was correctly rejected as stale,
+    /// the STALENESS branch rendered instead, and the test failed. It had never
+    /// been testing the absence branch in isolation — it was reading host state
+    /// and getting lucky. A test that passes by coincidence is the same defect
+    /// class as a document that cannot detect its own staleness, which is the
+    /// thing this file exists to prevent.
+    ///
+    /// Injecting the location is the whole fix: with it, "absent" and
+    /// "present but stale" are both reachable on their own terms, on any
+    /// machine, without touching what the operator has installed.
     public static func resolve(explicit: URL? = nil,
-                               environment: [String: String] = ProcessInfo.processInfo.environment)
+                               environment: [String: String] = ProcessInfo.processInfo.environment,
+                               defaultLocation: URL? = nil)
         -> Resolution {
+        let fallback = defaultLocation ?? defaultURL
         var searched = [String]()
         if let explicit {
             searched.append("named by the caller: \(explicit.path)")
             if FileManager.default.fileExists(atPath: explicit.path) {
-                return Resolution(url: explicit, source: "named by the caller", searched: searched)
+                return Resolution(url: explicit, source: "named by the caller", searched: searched, defaultLocation: fallback)
             }
         }
         if let fromEnv = environment[environmentKey], !fromEnv.isEmpty {
             let url = URL(fileURLWithPath: fromEnv)
             searched.append("\(environmentKey)=\(fromEnv)")
             if FileManager.default.fileExists(atPath: url.path) {
-                return Resolution(url: url, source: environmentKey, searched: searched)
+                return Resolution(url: url, source: environmentKey, searched: searched, defaultLocation: fallback)
             }
         }
-        let fallback = defaultURL
         searched.append("default: \(fallback.path)")
         if FileManager.default.fileExists(atPath: fallback.path) {
-            return Resolution(url: fallback, source: "default location", searched: searched)
+            return Resolution(url: fallback, source: "default location", searched: searched,
+                              defaultLocation: fallback)
         }
-        return Resolution(url: nil, source: "not found", searched: searched)
+        return Resolution(url: nil, source: "not found", searched: searched,
+                          defaultLocation: fallback)
     }
 
     // MARK: - loading

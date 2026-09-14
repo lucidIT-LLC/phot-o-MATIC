@@ -227,6 +227,35 @@ jobs:
       - name: "Served instructions state #513's doctrine"
         run: ./.github/check-doctrine.py .build/release/walk-mcp .build/release/walk
 
+      # THE INSTALL PATH, and it is here because its ABSENCE is what task #729
+      # filed. MEASURED on the operator's host 2026-09-12: the installed `walk`
+      # reported 0.3.0 while the installed `walk-mcp` reported 0.5.0, from one
+      # source tree, because the Makefile had `install-mcp` and NO CLI install
+      # target. The door with a path stayed current; the door without one
+      # drifted two releases, silently, and `walk contract --expect 0.5.0`
+      # exited 1 — making Pixel's skill section 8.5 gate read as failing for a
+      # reason that had nothing to do with the skill.
+      #
+      # Same shape as the doctrine check above, so it earns its trust the same
+      # way: PROVE IT CAN FAIL first. The selftest requires a blank version, a
+      # stale version, a missing build and an unreadable Version.swift each to
+      # fail, and the matching case to pass.
+      - name: Install check can fail
+        run: ./.github/stage-binary.sh --selftest
+
+      # Then the real thing, on both front doors, into a throwaway BINDIR — the
+      # runner's own ~/.local/bin is not the subject. This fails if either
+      # binary cannot name itself or names a version other than the tree's.
+      - name: Both front doors stage and match Walk.version
+        run: |
+          BINDIR=$(mktemp -d)/bin
+          ./.github/stage-binary.sh walk        .build/release/walk        "$BINDIR"
+          ./.github/stage-binary.sh walk-mcp    .build/release/walk-mcp    "$BINDIR"
+          DECLARED=$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift)
+          # The gate a consumer actually runs, against what was just staged.
+          "$BINDIR/walk" contract --expect "$DECLARED"
+          echo "both front doors staged and agree on $DECLARED"
+
       # The app target must build. SwiftPM cannot produce a bundle, so this is
       # the only thing that proves the SwiftUI target still compiles.
       - name: Build the app
@@ -251,6 +280,65 @@ jobs:
           grep -q "enum ClipFinder" Sources/WalkKit/ClipFinder.swift \
             || { echo "::error::ClipFinder is gone"; exit 1; }
           echo "folder enumeration is in WalkKit only"
+
+      # ---------------------------------------------------------------------
+      # THE #254 BRAND GATE — task #772.
+      #
+      # Brandy's gate over the criteria set was design_verified: a verdict with
+      # nothing able to refuse. Smith built the executable half and measured its
+      # own closing caveat — the gate stays design_verified "until it lands in
+      # CI and something red actually blocks a release." These two steps are
+      # that landing, and they are in this order on purpose.
+      #
+      # THE SUITE FIRST, so the gate is never trusted before it has been watched
+      # failing. It proves each of the eight detectors refuses its own dirty
+      # fixture, that disabling a detector turns that fixture green (so no
+      # detector is decorative), and that the #536 re-aim narrowed N2 rather
+      # than disabling it.
+      - name: Brand gate can fail
+        run: python3 Tools/brand-gate/run_eval.py
+
+      # THEN the gate itself, blocking. A criteria set carrying a #254 violation
+      # cannot reach the public marketplace through this workflow.
+      #
+      # THIS IS EXPECTED TO BE RED TODAY and that is the control working, not a
+      # broken build: nine findings in the `origin` fields await an operator
+      # ruling reconciling decision #505 with decision #536. See
+      # Tools/brand-gate/waivers.txt for why they are not waived and
+      # Tools/brand-gate/PROPOSED-origin-minimal-edit.md for the ready change.
+      #
+      # It does NOT block the Phase 1 plugin, which ships the engine and no
+      # criteria at all — hence continue-on-error until that ruling lands. THE
+      # DAY THE CRITERIA SHIP, THIS LINE COMES OUT; the test below is what makes
+      # forgetting it impossible.
+      - name: "#254 brand gate on the shipped criteria set"
+        continue-on-error: true
+        run: python3 Tools/brand-gate/brand_gate_254.py criteria/walk-criteria.json --waivers Tools/brand-gate/waivers.txt
+
+      # THE TRIPWIRE ON THE LINE ABOVE. continue-on-error is exactly the kind of
+      # temporary softening that becomes permanent because nothing notices it.
+      # Criteria do not ship while Coaching.shippedCriteriaJSON is nil; the
+      # moment one does, the gate must be hard. This step fails if that day
+      # arrives and continue-on-error is still there.
+      - name: A shipped criteria set makes the brand gate blocking
+        run: |
+          SHIPS=$(grep -c 'shippedCriteriaJSON: String? = nil' Sources/WalkKit/Coaching.swift || true)
+          SOFT=$(grep -c 'continue-on-error: true' .github/workflows/ci.yml || true)
+          if [ "$SHIPS" = "0" ] && [ "$SOFT" != "0" ]; then
+            echo "::error::a criteria set now ships inside Walk, so the #254 gate must block. Remove continue-on-error from the brand gate step."
+            exit 1
+          fi
+          echo "shippedCriteriaJSON nil=$SHIPS  soft-gate markers=$SOFT  — consistent"
+
+      # ---------------------------------------------------------------------
+      # THE PLUGIN PAYLOAD — decision #534. The repository root IS the plugin
+      # root, so every manifest, launcher and skill here is shipped content and
+      # CI must judge it as such. `make plugin-check` is the same check the
+      # staging target runs locally, so the two cannot diverge.
+      - name: Plugin payload is shippable
+        run: |
+          ./.github/stage-binary.sh walk-mcp .build/release/walk-mcp "$PWD/bin"
+          make plugin-check
 
       # The tag must equal the version in source. This is the control that stops
       # a release being tagged v0.3.0 while the binary reports 0.2.0.

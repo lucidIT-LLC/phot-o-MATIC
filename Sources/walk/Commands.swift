@@ -177,7 +177,7 @@ enum ScanCommand {
         print("              The luma / base / delta / rise columns below are measured IN THIS SPACE.")
         print("              A gamma-encoded 10-bit Y-plane measurement of the same event is a DIFFERENT")
         print("              and much smaller number, and NOT by a fixed factor: clip 0012 frame 2347 is")
-        print("              +36.03% here and +6.02% on the Y plane; frame 2388 is +3.69% here and +0.79%")
+        print("              +36.03% here and +6.02% on the Y plane; frame 2388 is +3.69% here and +0.87%")
         print("              there. The Ymean and Ymax columns ARE Y-plane code values — they are not")
         print("              comparable with rise, and no single multiplier converts between them.")
     }
@@ -511,4 +511,154 @@ enum SegmentsCommand {
 
 extension Array {
     subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil }
+}
+
+// MARK: - walk sheet
+
+/// The third front door onto `sheet.timeSampled`, and it is here for the same
+/// reason `walk scan` is: a capability reachable only through MCP is a
+/// capability that cannot be run by hand when it misbehaves. Nothing below
+/// measures or decodes — `ProofSheet` does all of it, and this formats.
+enum SheetCommand {
+
+    struct Args {
+        var paths: [String] = []
+        var out: String? = nil
+        var frames = 12
+        var cellWidth: Double = 900
+        var recursive = false
+        var placeholders = true
+        var maxItems: Int? = nil
+        var json = false
+    }
+
+    static func parse(_ argv: [String]) -> Args {
+        guard argv.count >= 3 else {
+            err("""
+                usage: walk sheet <folder-or-file> [more...] [--out <dir>] [--frames <n>]
+                                  [--cell-width <px>] [--recursive] [--no-placeholders]
+                                  [--max-items <n>] [--json]
+                """)
+        }
+        var a = Args()
+        var i = 2
+        while i < argv.count {
+            switch argv[i] {
+            case "--out":
+                i += 1
+                guard i < argv.count else { err("--out wants a directory") }
+                a.out = argv[i]
+            case "--frames":
+                i += 1
+                guard i < argv.count, let n = Int(argv[i]), n >= 1, n <= 60 else {
+                    err("--frames wants a number between 1 and 60")
+                }
+                a.frames = n
+            case "--cell-width":
+                i += 1
+                guard i < argv.count, let w = Double(argv[i]), w >= 64, w <= 3840 else {
+                    err("--cell-width wants a number between 64 and 3840")
+                }
+                a.cellWidth = w
+            case "--max-items":
+                i += 1
+                guard i < argv.count, let n = Int(argv[i]), n > 0 else {
+                    err("--max-items wants a positive number")
+                }
+                a.maxItems = n
+            case "--recursive": a.recursive = true
+            case "--no-placeholders": a.placeholders = false
+            case "--json": a.json = true
+            default: a.paths.append(argv[i])
+            }
+            i += 1
+        }
+        guard !a.paths.isEmpty else { err("walk sheet needs at least one folder or file") }
+        return a
+    }
+
+    static func run(_ argv: [String]) async {
+        let a = parse(argv)
+        let inputs = a.paths.map { URL(fileURLWithPath: $0) }
+        let name = inputs[0].lastPathComponent.isEmpty ? "sheet" : inputs[0].lastPathComponent
+        var options = ProofSheet.Options(
+            outputDirectory: a.out.map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? ProofSheet.Options.defaultDirectory(name: name))
+        options.framesPerClip = a.frames
+        options.cellWidth = a.cellWidth
+        options.recursive = a.recursive
+        options.placeholders = a.placeholders
+        options.maximumItems = a.maxItems
+
+        // PROGRESS IS THE WHOLE POINT ON THIS JOB. A sheet over the operator's
+        // card is tens of seconds of decoding, and a front door that prints
+        // nothing until it finishes is indistinguishable from one that hung.
+        let quiet = a.json
+        do {
+            let sheet = try await ProofSheet.run(inputs, options: options) { p in
+                guard !quiet else { return }
+                switch p {
+                case .enumerated(let items, let cells):
+                    print("found         \(items) item\(items == 1 ? "" : "s"), \(cells) cell\(cells == 1 ? "" : "s")")
+                case .manifestWritten(let url):
+                    print("manifest      \(url.path)")
+                case .placeholder(let item, let cell, let of):
+                    FileHandle.standardError.write("  placeholder item \(item + 1) cell \(cell + 1)/\(of)\r".data(using: .utf8)!)
+                case .sharp(let item, let cell, let of):
+                    FileHandle.standardError.write("  cell        item \(item + 1) cell \(cell + 1)/\(of)\r".data(using: .utf8)!)
+                case .itemFailed(let url, let why):
+                    print("UNREADABLE    \(url.lastPathComponent): \(why)")
+                }
+            }
+
+            if a.json {
+                let payload = ProofSheet.manifest(items: sheet.items, found: sheet.found,
+                                                  inputs: inputs, options: options)
+                if let d = try? JSONSerialization.data(withJSONObject: payload,
+                                                       options: [.prettyPrinted, .sortedKeys]),
+                   let s = String(data: d, encoding: .utf8) {
+                    print(s)
+                }
+                return
+            }
+
+            print("")
+            print("sheet         \(sheet.directory.path)")
+            print("manifest      \(sheet.manifest.path)")
+            print("result        \(sheet.verdict)")
+            print(String(format: "timing        metadata %.3f s, placeholders %.3f s, cells %.3f s, total %.3f s",
+                         sheet.metadataSeconds, sheet.placeholderSeconds,
+                         sheet.sharpSeconds, sheet.totalSeconds))
+            if !sheet.found.skipped.isEmpty {
+                print("skipped       \(sheet.found.skipped.count) file(s), each with a reason in the manifest")
+            }
+            print("")
+            print("  item                                      kind   cells  dims          fps     dur      shutter")
+            for item in sheet.items {
+                let dims = item.width > 0 ? "\(item.width)x\(item.height)" : "-"
+                let fps = item.fps.map { String(format: "%.2f", $0) } ?? "-"
+                let dur = item.seconds.map { String(format: "%.1fs", $0) } ?? "-"
+                var shutter = "-"
+                if let s = item.shutter {
+                    shutter = String(format: "1/%.0f  %+.1f stop%@ from 180deg",
+                                     s.medianDenominator, s.stopsFromOneEighty,
+                                     abs(s.stopsFromOneEighty) < 1.05 ? " " : "s")
+                }
+                let ready = item.cells.filter(\.ready).count
+                print(String(format: "  %-40@  %-5@  %2d/%-2d  %-12@  %-6@  %-7@  %@",
+                             String(item.url.lastPathComponent.prefix(40)),
+                             item.kind.rawValue, ready, item.cells.count,
+                             dims, fps, dur, shutter))
+                if let e = item.error { print("      could not be read: \(e)") }
+            }
+            print("")
+            // #513 / #499, said out loud on the one surface a person reads.
+            print("This sheet DISPLAYS and MEASURES. Nothing in it is banded, ranked or scored,")
+            print("and the shutter column compares each clip to the 180-degree convention")
+            print("1/(2 x fps) — a measurement against a named standard, not a verdict on the")
+            print("footage. The coaching verdict is `walk scan`, from a criteria file.")
+        } catch {
+            err("\(error)")
+        }
+    }
 }

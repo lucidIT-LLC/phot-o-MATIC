@@ -48,7 +48,7 @@ public enum Coaching {
 
         public var label: String {
             switch self {
-            case .sellableAsShot: return "SELLABLE AS SHOT"
+            case .sellableAsShot: return "KEEPER"
             case .hasPotentialWithThis: return "HAS POTENTIAL, WITH THIS"
             case .notWorthTheTrouble: return "NOT WORTH THE TROUBLE"
             }
@@ -207,29 +207,47 @@ public enum Coaching {
         public let origin: String
     }
 
-    /// #513's teaching spine, already measured on clip 0012 and corrected once
-    /// in public: #504 superseded #495's six-strike count on exactly this.
+    /// #513's teaching spine, measured on clip 0012 and corrected twice in
+    /// public: #504 superseded #495's six-strike count on exactly this, and
+    /// #740 found this lesson comparing two DIFFERENT COLOUR SPACES to make its
+    /// point — 2347's linear rise against 2388's Y-plane rise, no space named
+    /// on either — which is the same defect #740 fixed in every other output
+    /// surface.
     ///
-    /// Frame 2347 lifted the picture 36.03% and scores 0.3435 for lightning.
-    /// Frame 2388 lifted it 3.69% at the detector's baseline — 0.8% of the whole
-    /// frame against its neighbours — and scores 0.6616, nearly double the
-    /// confidence at a fraction of the brightness. Sorting by brightness picks
-    /// the wrong frame, and the first scan of this clip missed two real
-    /// cloud-to-ground strikes that way.
+    /// EVERY NUMBER HERE IS READ OFF THE ENGINE, and
+    /// `KnownAnswerTests.theLuminanceLessonQuotesTheEnginesOwnNumbers` re-derives
+    /// all five from a scan of the clip and fails if the prose and the engine
+    /// diverge. That is why the figures sit at this precision instead of being
+    /// rounded into safety: a rounded number cannot be checked against an
+    /// instrument. #740 is explicit that these come from the engine and not
+    /// from a decision record, and the check is what makes that true rather
+    /// than merely intended.
+    ///
+    /// Frame 2347 lifts the picture +36.03% in pinned linear BT.2020 and scores
+    /// 0.3435 for lightning. Frame 2388 lifts it +3.69% in that same space —
+    /// +0.87% on the gamma-encoded 10-bit Y plane, which does not even clear the
+    /// detector's own 1% floor — and scores 0.6616: nearly double the confidence
+    /// at a tenth of the brightness. Sorting by brightness picks the wrong
+    /// frame, and the first scan of this clip missed two real cloud-to-ground
+    /// strikes that way.
     public static let luminanceIsNotLightning = Lesson(
         id: "luminanceIsNotLightning",
         headline: "Luminance finds bright flashes. Classification finds lightning. They are different measurements.",
         detail: """
-            On clip 0012, frame 2347 lifted the picture 36.0% and scores 0.34 for \
-            lightning; frame 2388 lifted it 0.8% over its neighbours and scores 0.66 \
-            — nearly double the confidence at a fraction of the brightness, because \
-            the bolt is thin, distant and well formed. It has the SHAPE of lightning \
-            without the BRIGHTNESS of it. A 6-sigma luminance threshold correctly \
-            rejected it as noise, and rejecting it was how the first scan of this \
-            clip lost two real cloud-to-ground strikes. Rank by brightness and you \
-            will hand back the wrong frame; that is a lesson, not a statistic.
+            On clip 0012, 2388 lifted the frame +3.69% in pinned linear BT.2020 \
+            (+0.87% on the gamma-encoded Y plane) and scores 0.6616, against \
+            2347's +36.03% linear and 0.3435 — nearly double the confidence at a \
+            tenth of the brightness, because the bolt is thin, distant and well \
+            formed. It has the SHAPE of lightning without the BRIGHTNESS of it. \
+            The two percentages in that first pair are different quantities and no \
+            fixed factor converts between them; on 2347 the same event reads \
+            +36.03% linear against +6.02% on the Y plane. On the Y plane 2388 is \
+            not a candidate at all — +0.87% is under the detector's 1% floor, and \
+            a threshold rejecting it is how the first scan of this clip lost two \
+            real cloud-to-ground strikes. Rank by brightness and you will hand \
+            back the wrong frame; that is a lesson, not a statistic.
             """,
-        origin: "decision #504, correcting #495; restated as the teaching spine by #513")
+        origin: "decision #504, correcting #495; restated as the teaching spine by #513; numbers re-measured off the engine and space-labelled under #740")
 
     public static let lessons: [Lesson] = [luminanceIsNotLightning]
 
@@ -312,9 +330,16 @@ public enum Coaching {
         /// different answer from one that is absent, and both are reported —
         /// swallowing a parse error into "no criteria" would hide the one case
         /// where somebody tried.
+        /// `defaultLocation` is the test seam — see `Criteria.resolve` for the
+        /// measurement that forced it. Production callers omit it and get the
+        /// installed location; a test passes a directory it controls, so
+        /// "no criteria installed" and "installed but stale" are both reachable
+        /// without depending on what is on the machine running the test.
         public init(explicit: URL? = nil,
-                    environment: [String: String] = ProcessInfo.processInfo.environment) {
-            let r = Criteria.resolve(explicit: explicit, environment: environment)
+                    environment: [String: String] = ProcessInfo.processInfo.environment,
+                    defaultLocation: URL? = nil) {
+            let r = Criteria.resolve(explicit: explicit, environment: environment,
+                                     defaultLocation: defaultLocation)
             self.resolution = r
             guard let url = r.url else {
                 // Nothing installed. Fall back to a set compiled into the build
@@ -355,7 +380,8 @@ public enum Coaching {
                     rather than a readout; the criteria file is the mechanism a verdict \
                     comes from and Walk does not ship one. The measurements are \
                     complete and unjudged. Install a criteria set at \
-                    \(Criteria.defaultURL.path), or name one with \(Criteria.environmentKey), \
+                    \(resolution?.defaultLocation.path ?? Criteria.defaultURL.path), or name \
+                    one with \(Criteria.environmentKey), \
                     and every scan renders bands from it.
                     """
             }

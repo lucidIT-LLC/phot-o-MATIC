@@ -88,6 +88,11 @@ if args.count >= 2, args[1] == "scan" {
     exit(0)
 }
 
+if args.count >= 2, args[1] == "sheet" {
+    await SheetCommand.run(args)
+    exit(0)
+}
+
 if args.count >= 2, args[1] == "segments" {
     await SegmentsCommand.run(args)
     exit(0)
@@ -108,6 +113,8 @@ guard args.count >= 3 else {
                                  [--sigma <k>] [--floor <fraction>] [--criteria <file>]
                walk segments <video> [--handles <sec>] [--lead <sec>] [--tail <sec>]
                                  [--out <dir>] [--fps <n>] [--dry-run]
+               walk sheet <folder> [--out <dir>] [--frames <n>] [--cell-width <px>]
+                                 [--recursive] [--no-placeholders] [--max-items <n>] [--json]
                walk identifiers [substring]
                walk <in> <out> [neutral|dramatic] [targetNits]
                walk --version

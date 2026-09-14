@@ -1,0 +1,41 @@
+{
+  "name": "walk",
+  "version": "0.5.7",
+  "license": "BUSL-1.1",
+  "description": "Walk — on-device footage triage for photographers. Scans video on Apple silicon with a whole-frame luminance-rise detector and an on-device Vision classifier, and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
+  "author": {
+    "name": "LucidIT, LLC",
+    "url": "https://o-matic.ai"
+  },
+  "homepage": "https://o-matic.ai",
+  "repository": "https://github.com/lucidIT-LLC/Walk",
+  "keywords": [
+    "omatic",
+    "photography",
+    "video",
+    "vision",
+    "coreml",
+    "triage",
+    "mcp",
+    "claude-code"
+  ],
+  "mcpServers": {
+    "walk": {
+      "command": "/bin/sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/omatic-walk-launch.sh"
+      ],
+      "env": {
+        "WALK_CRITERIA": "${WALK_CRITERIA}"
+      }
+    }
+  },
+  "displayName": "Walk",
+  "metadata": {
+    "compatibilityTier": "MCP-host-full-operation ONLY, AND macOS 26 or later on Apple silicon (arm64) ONLY — this plugin ships a native Mach-O binary, not a script",
+    "shipsMcpServer": true,
+    "requiresForFullOperation": "a host able to launch stdio MCP servers, running macOS 26+ on arm64. There is no Intel build and no non-Apple port: the engine links Vision, CoreML and AVFoundation directly, which is the whole reason the classification runs on-device and costs no tokens.",
+    "declaredUnder": "known_rules #284 (compatibility gate, halt)",
+    "note": "PHASE 1 SHIPS THE ENGINE AND NO JUDGMENT. Decision #534 rules that the coaching criteria set ships inside this plugin; it does not ship in this phase. Until it does, every scan returns coaching.available=false together with the reason and the paths searched — read that field rather than inferring a verdict, and do not substitute one. A criteria set installed at ~/Library/Application Support/Walk/criteria.json, or named in WALK_CRITERIA, is loaded and rendered from. Hosts that omit mcpServers plugins will not install this pack, and hosts below the macOS/arch floor get a server that advertises zero tools and states the reason rather than failing silently."
+  }
+}

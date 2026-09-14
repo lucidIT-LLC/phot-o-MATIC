@@ -1,0 +1,66 @@
+# WAIVERS for the #254 conformance gate over criteria/walk-criteria.json.
+#
+# FORMAT:  CODE | location | token | the authority that permits it
+# Matching is by EXACT triple. A waiver that matches nothing FAILS the gate, so
+# a waiver cannot outlive the finding it covers.
+#
+# THE BAR FOR AN ENTRY HERE IS A NAMED AUTHORITY, NOT AN OPINION. "Carver judged
+# this acceptable" is not an authority and must never appear in this file. If a
+# finding is real and nobody has ruled on it, it stays RED — that is the gate
+# doing its job, and a permanently red gate is a signal to get a ruling, not a
+# reason to add a line here.
+#
+# ---------------------------------------------------------------------------
+# WAIVED: the three outcome-promise lines. Gate owner Brandy, NOT Carver.
+#
+# Brandy's gate brand.brand_messaging id 105 CLASS 4 reads "PASS, unqualified
+# ... every line craft rather than claim", which is a ruling by the owner of
+# #254 on exactly these three strings. Smith's adversarial review dissents and
+# argues for PASS WITH CHANGES; that dispute is open as task #773 and is routed
+# to Brandy. Task #770 additionally states that "the 9 reason/nextFlight strings
+# PASS unchanged and MUST NOT BE TOUCHED."
+#
+# So Carver is doubly barred from fixing these: the owner has ruled them
+# acceptable and the remediation task forbids the edit. They are waived on her
+# standing verdict and they stay VISIBLE in every gate run, which is the point —
+# if #773 changes the verdict, these three lines are already enumerated.
+#
+# Corrected wording for all three exists and is green:
+# Tools/brand-gate/fixtures/P2-clean-n6-corrected.json
+# ---------------------------------------------------------------------------
+N6_OUTCOME_PROMISE | thin-distant-bolt-clean-sky.reason | the most saleable storm frame there is | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
+N6_OUTCOME_PROMISE | real-strike-that-lifted-the-whole-scene.nextFlight | you will sell | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
+N6_OUTCOME_PROMISE | bright-but-not-lightning.nextFlight | lose nothing | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
+
+# ---------------------------------------------------------------------------
+# NOT WAIVED, DELIBERATELY: nine findings in `origin` — 6 x N1 "Pixel",
+# 3 x N3 "skill 2.5.0".
+#
+# These are left RED because Carver could not resolve them without adopting a
+# permissive reading of two rulings that point opposite ways, and the
+# permissive reading is the one that would have let this build go green:
+#
+#   Decision #536 ruling 1 keeps the `origin` fields as written, so that the
+#   audit trail survives. The instruction carrying it to Carver was "do not
+#   rewrite the nine origin fields; if you find yourself editing an origin
+#   field, stop."
+#
+#   Decision #505 confines the coach to Walk and retires the name "Pixel" from
+#   customer-facing surfaces. Task #775 exists because that name in a SHIPPED
+#   FILENAME is public copy. The same name in shipped FILE CONTENT, bound for
+#   the same public marketplace repository, is the same exposure.
+#
+# #536's rationale is explicitly about DECISION NUMBERS — "the audit trail IS
+# the decision number" — and says nothing about persona names or pack versions.
+# Reading it as also protecting "Pixel" and "skill 2.5.0" is available but it is
+# not what it argues, and guessing in the direction that unblocks the build is
+# the failure this gate exists to catch.
+#
+# THE FIX IS ONE LINE PER RULE AND IS WRITTEN OUT, READY, in
+# Tools/brand-gate/PROPOSED-origin-minimal-edit.md — it changes only the persona
+# name and the pack version and leaves every decision number and every other
+# word untouched. It needs an operator ruling, not more work.
+#
+# This gate blocks the criteria artifact. It does NOT block the Phase 1 plugin,
+# which ships the engine and no criteria at all.
+# ---------------------------------------------------------------------------

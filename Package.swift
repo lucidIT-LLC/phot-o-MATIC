@@ -29,6 +29,21 @@ let package = Package(
         // to keep in step with this one — and §8.5 exists because keeping two
         // things in step by hand is what fails here.
         .executableTarget(name: "walk-mcp", dependencies: ["WalkKit"]),
-        .testTarget(name: "WalkKitTests", dependencies: ["WalkKit"]),
+        // The fixture is a 16 KB CreateML model with a known answer (red/blue),
+        // carried so the custom-Core-ML path has a test that runs anywhere.
+        // KnownAnswerTests needs 780 MB on an external volume and skips without
+        // it; this one must not, which is why the model is in the repository and
+        // Tools/make-known-answer-model.swift regenerates it.
+        //
+        // `.copy`, NOT `.process`, AND THE DIFFERENCE IS THE WHOLE TEST.
+        // MEASURED: with `.process`, the build system recognises a Core ML model
+        // and compiles it, so what lands in the bundle is `WalkKnownAnswer.mlmodelc`
+        // and the `.mlmodel` is gone. The test would then either fail to find its
+        // fixture or silently exercise the already-compiled path — proving that
+        // the BUILD can compile a model, which was never in question, instead of
+        // that WALK can compile one at runtime, which is the claim being made.
+        // `.copy` carries the bytes through untouched.
+        .testTarget(name: "WalkKitTests", dependencies: ["WalkKit"],
+                    resources: [.copy("Fixtures")]),
     ]
 )

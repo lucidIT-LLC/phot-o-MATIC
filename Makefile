@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check deprecations verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check gate gate-check deprecations verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -170,6 +170,91 @@ install-mcp: release
 	@echo "Then confirm:  claude mcp get walk"
 	@echo "Trace the wire: WALK_MCP_LOG=/tmp/walk-wire.log in the server's env"
 
+# ---------------------------------------------------------------------------
+# THE PLUGIN PAYLOAD — decision #534.
+#
+# Walk ships as an o-MATIC plugin installed from the GitHub marketplace, which
+# means the REPOSITORY ROOT IS THE PLUGIN ROOT: .mcp.json, .claude-plugin/,
+# .codex-plugin/, skills/ and bin/ are the payload a host clones, and bin/walk-mcp
+# is a committed build artifact rather than something the host compiles.
+#
+# THIS TARGET CALLS .github/stage-binary.sh AND DOES NOT REIMPLEMENT ITS CHECK.
+# That script's own header states the rationale and it applies verbatim here:
+# the version check "existed in one place, so 'both front doors are checked'
+# depended on somebody remembering to copy it. A copied check is a check that
+# can diverge, and the diverging front door is the exact defect #729 filed."
+# Staging the plugin is now a THIRD front door. A hand-rolled `cp` here would
+# recreate #729 on the one surface that reaches customers, where a stale binary
+# is not a developer's annoyance but a shipped lie about what the plugin is.
+#
+# So: same script, different bindir. The plugin binary cannot silently disagree
+# with Sources/WalkKit/Version.swift, because the same code refuses to stage it.
+PLUGINBIN := $(CURDIR)/bin
+
+stage-plugin: release
+	./.github/stage-binary.sh walk-mcp $(MCP) $(PLUGINBIN)
+	@# Gatekeeper quarantine on a committed binary is the failure that looks
+	@# like a crash instead of a refusal. Clear it here, at the moment the file
+	@# is produced, rather than asking every installer to know about it.
+	@xattr -c $(PLUGINBIN)/walk-mcp 2>/dev/null || true
+	@echo ""
+	@echo "plugin payload staged. Verifying what a host would actually get:"
+	@$(MAKE) --no-print-directory plugin-check
+
+# Can a host run what is in bin/? Asked, not assumed.
+#
+# `walk-mcp --help` HANGS FOREVER ON STDIN (measured) — it is a stdio server and
+# an empty stdin is a session that never ends — so nothing here may invoke it
+# without closing stdin. `--version` returns and exits; that is the probe.
+plugin-check:
+	@set -e; \
+	fail=0; \
+	declared="$$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift)"; \
+	for f in .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json \
+	         bin/omatic-walk-launch.sh bin/omatic-walk-degraded-server.sh bin/walk-mcp; do \
+		[ -e "$$f" ] || { echo "plugin-check FAILED: $$f is missing from the payload" >&2; fail=1; }; \
+	done; \
+	for f in bin/omatic-walk-launch.sh bin/omatic-walk-degraded-server.sh bin/walk-mcp; do \
+		[ -x "$$f" ] || { echo "plugin-check FAILED: $$f is not executable; a host will not be able to spawn it" >&2; fail=1; }; \
+	done; \
+	for f in .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json; do \
+		python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$$f" || \
+			{ echo "plugin-check FAILED: $$f is not valid JSON" >&2; fail=1; }; \
+	done; \
+	:; \
+	: 'The documented variable is CLAUDE_PLUGIN_ROOT. The plugins reference states'; \
+	: 'it in terms — "Exact variable names: CLAUDE_PLUGIN_ROOT (not PLUGIN_ROOT)" —'; \
+	: 'and a bare $${PLUGIN_ROOT} does not expand, so the host spawns /bin/sh on a'; \
+	: 'path beginning with a literal dollar sign and the plugin has no tools. That'; \
+	: 'reads as "not configured". This is the check that keeps it from being ours.'; \
+	if grep -q '\$${PLUGIN_ROOT}' .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json 2>/dev/null; then \
+		echo "plugin-check FAILED: a manifest uses \$${PLUGIN_ROOT}, which is not a" >&2; \
+		echo "  documented variable and does not expand. Use \$${CLAUDE_PLUGIN_ROOT}." >&2; \
+		fail=1; \
+	fi; \
+	grep -q 'CLAUDE_PLUGIN_ROOT' .mcp.json || \
+		{ echo "plugin-check FAILED: .mcp.json does not reference \$${CLAUDE_PLUGIN_ROOT}; the launcher path cannot resolve" >&2; fail=1; }; \
+	: 'One version, not two that can diverge — the whole lesson of #729.'; \
+	for m in .claude-plugin/plugin.json .codex-plugin/plugin.json; do \
+		mv="$$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$$m")"; \
+		[ "$$mv" = "$$declared" ] || { echo "plugin-check FAILED: $$m declares $$mv, the source tree declares $$declared" >&2; fail=1; }; \
+	done; \
+	if [ -e bin/walk-mcp ]; then \
+		: 'stdin is closed so a stdio server cannot park on it.'; \
+		iv="$$(./bin/walk-mcp --version < /dev/null 2>/dev/null || true)"; \
+		[ "$$iv" = "$$declared" ] || { echo "plugin-check FAILED: bin/walk-mcp reports '$$iv', tree declares '$$declared'" >&2; fail=1; }; \
+		file bin/walk-mcp | grep -q 'arm64' || { echo "plugin-check FAILED: bin/walk-mcp is not an arm64 Mach-O" >&2; fail=1; }; \
+		if xattr bin/walk-mcp 2>/dev/null | grep -q 'com.apple.quarantine'; then \
+			echo "plugin-check FAILED: bin/walk-mcp carries com.apple.quarantine and macOS will refuse to run it" >&2; fail=1; \
+		fi; \
+	fi; \
+	: 'The three skills are payload, not decoration — #534 ships them inside.'; \
+	for s in media-triage coreml-vision creator-studio; do \
+		[ -f "skills/$$s/SKILL.md" ] || { echo "plugin-check FAILED: skills/$$s/SKILL.md is missing" >&2; fail=1; }; \
+	done; \
+	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
+	echo "  plugin payload OK — walk-mcp $$declared, arm64, unquarantined, manifests agree"
+
 # Every deprecation in the build, against the reasoned allowlist. Fails on a new
 # one AND on a stale entry. See .github/deprecations-allowed.txt.
 #
@@ -188,8 +273,23 @@ deprecations:
 	swift build -c release --scratch-path $(DEPSCRATCH) 2>&1 | tee /tmp/walk-build.log > /dev/null
 	./.github/check-deprecations.sh /tmp/walk-build.log
 
+# --- the #254 brand gate over the shipped criteria set (task #772) ----------
+#
+# Brandy's gate was design_verified: a verdict nothing could refuse with. Smith
+# built the executable half and named the remaining gap himself — it stays
+# design_verified "until it lands in CI and something red actually blocks a
+# release." `gate-check` is the proof it can fail; `gate` is the gate.
+#
+# RUN gate-check BEFORE TRUSTING gate, the same discipline as install-check.
+gate-check:
+	python3 Tools/brand-gate/run_eval.py
+
+gate:
+	python3 Tools/brand-gate/brand_gate_254.py criteria/walk-criteria.json \
+		--waivers Tools/brand-gate/waivers.txt
+
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations test mcp-check contract
+verify: deprecations test mcp-check contract gate-check plugin-check
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"

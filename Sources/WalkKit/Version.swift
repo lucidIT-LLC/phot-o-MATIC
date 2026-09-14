@@ -22,7 +22,12 @@ import Foundation
 /// as false when it was half true. Every absent capability now carries a reason,
 /// and a test fails if one does not.
 public enum Walk {
-    public static let version = "0.5.0"
+    // 0.5.6 IS SKIPPED ON PURPOSE. The operator does not use six in a version
+    // number, which is a standing preference and not a defect to correct. Noted
+    // here rather than left as an unexplained gap, because an unexplained gap in
+    // a version sequence is exactly the sort of thing a later session
+    // "corrects."
+    public static let version = "0.5.7"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is
@@ -45,7 +50,14 @@ public enum Walk {
         "video.trim":            "0.3.0",  // a frame range out to its own file
         "classify.vision":       "0.3.0",  // ClassifyImageRequest, 1303-identifier taxonomy, no model file
         "colorspace.linear2020": "0.3.0",  // pinned extendedLinearITUR_2020 working space
-        "app.proofSheet":        "0.3.0",  // SwiftUI window that shows what the scan found
+        // NOT MOVED, AND THE RESTRAINT IS THE POINT. This is the SwiftUI
+        // window that shows DETECTED CANDIDATES, and 0.5.5 did not change it.
+        // The time-sampled sheet added in 0.5.5 is a different thing answering a
+        // different question, and it is declared below under its own names. The
+        // precedent is #507: `ingest.dump` was one word doing two jobs, and the
+        // fix was a name narrow enough to be true, not a name stretched until it
+        // covered what had been built.
+        "app.proofSheet":        "0.3.0",  // SwiftUI window that shows what the DETECTOR found
         // 0.4.0 — the conversation reaching the engine (#507), and the library
         // taking back the two things the front doors had each grown privately.
         "scan.clip":             "0.4.0",  // one clip end to end: read, scan, detect, classify, thumbnail
@@ -60,6 +72,22 @@ public enum Walk {
         "coach.bands":           "0.5.0",  // #513's three bands; band 2's change AND forward question are init-enforced, not requested
         "coach.criteria":        "0.5.0",  // #499's criteria file: four-field rules, own version, staleness check, absence reported as absence
         "coach.evidence":        "0.5.0",  // every verdict carries the measurements that fired it and the decision that established the rule
+        // 0.5.5 — "what is in this folder?", which the detector cannot answer.
+        // A candidate is a luminance event, so a clip whose light never changes
+        // produces no candidates and no picture; MEASURED on the operator's own
+        // GoPro folder, two clips of eight. Sampling TIME instead of events
+        // gives every clip a picture of its arc. Walk emits the data; the page
+        // is a separate artifact, so no renderer is compiled in here.
+        "sheet.timeSampled":     "0.5.5",  // N frames per clip spaced evenly across the whole duration, each centered in its slice so none is frame 0; one cell per still
+        "sheet.progressive":     "0.5.5",  // the manifest is written before any pixel is decoded and rewritten atomically as cells land, and every cell carries a tiny tone-mapped placeholder inline
+        "sheet.manifest":        "0.5.5",  // manifest.json: per item the dimensions, timing, codec, transfer function and the tone map applied; per cell the frame, timecode, seconds, file path and placeholder
+        "ingest.stills":         "0.5.5",  // JPG/HEIC/DNG/PNG/TIFF enumerated alongside video, with the video extension set still declared exactly once
+        "telemetry.djiSRT":      "0.5.5",  // the sibling .SRT read as a DISTRIBUTION over the whole file, never frame 1, plus a 180-degree shutter comparison against 1/(2 x fps)
+        // 0.5.7 — the custom Core ML path, moved out of notImplemented because
+        // CODE AND TESTS NOW STAND BEHIND IT and not because the spike succeeded.
+        // The old reason said in terms that a spike was not enough; that
+        // condition is what changed, not the measurement.
+        "coreml.custom":         "0.5.7",  // CustomModel: compile a supplied .mlmodel at RUNTIME via MLModel.compileModel(at:), load it, run it over a frame through VNCoreMLModel; ships no model and names no subjects
     ]
 
     /// What Walk explicitly does NOT do yet. Stated so a consumer cannot infer
@@ -78,8 +106,8 @@ public enum Walk {
         "touchup",
         "app.drive",
         "fcpxml.export",
-        "coreml.custom",
         "coach.verdict",
+        "coach.stills",
     ]
 
     /// Why each absent capability is absent, and what exists instead. A
@@ -92,21 +120,21 @@ public enum Walk {
         "video.audio":
             "#495: audio is never read, retimed or written. A 60→30 retime with audio is a different problem and has not been attempted. Segments come out silent.",
         "ingest.dump":
-            "#496's 'go through my dump for me' — RANKING a mixed folder by interest. NOT built, and distinct from ingest.folderScan, which IS built and only enumerates and scans. #507 measured the gap: the detector is a whole-frame luminance rise with a lightning classifier attached, so on non-storm footage a candidate is a brightness change and nothing more — 38 candidates on one GoPro clip are luminance events, not interesting moments. Walking the folder is solved; deciding what is worth keeping is not.",
+            "#496's 'go through my dump for me' — RANKING a mixed folder by interest. NOT built, and distinct from ingest.folderScan, which IS built and only enumerates and scans. #507 measured the gap: the detector is a whole-frame luminance rise with a lightning classifier attached, so on non-storm footage a candidate is a brightness change and nothing more — 38 candidates on one GoPro clip are luminance events, not interesting moments. Walking the folder is solved; deciding what is worth keeping is not. 0.5.5 adds sheet.timeSampled, which SHOWS a whole folder — every clip as an evenly-spaced strip, every still as a cell — so the operator can decide. It samples TIME and deliberately orders nothing by interest, so it is a way of looking and still not a sort.",
         "ingest.triage":
             "The general-interest detector #498 needs — more than one event type, so 'give it a folder, get back a sort' means a sort and not a list. Recorded as its own name in 0.4.0 so that ingest.dump stops carrying two meanings at once. Nobody has scoped what 'interesting' means for non-storm material; #507 names that as inferred, not measured.",
         "page.bestWorst":
-            "The best/worst page for stills — not built.",
+            "RANKING stills into a best and a worst — not built, and distinct from sheet.timeSampled (0.5.5), which IS built and shows every still in a folder as a cell alongside the clips. The difference is the same one ingest.dump names: showing is solved, ordering by quality is not, and #499 puts that judgment in Pixel's criteria file rather than in a metric. A page that put the 'best' frame first would be rendering a verdict the criteria file owns.",
         "touchup":
             "The quick corrections Lightroom does — not built.",
         "app.drive":
             "Walk driving Affinity or Lightroom. The coach's lane (#494 puts actuation outside the engine), and unmeasured here.",
         "fcpxml.export":
-            "#493 names FCPXML as the editorial handoff. Untouched; segments come out as .mov files only.",
+            "#493 names FCPXML as the editorial handoff, and #493 also settles the frame a reader is likely to get backwards: Final Cut is REJECTED as a control surface and VALID as a handoff target, so the destination was never in doubt -- only the writer. NO WalkKit CODE EMITS FCPXML. Segments still come out as .mov files only. WHAT CHANGED 2026-09-12 IS THE EVIDENCE UNDER THE ABSENCE, not the absence: the format is no longer an unknown. Final Cut Pro 12.3 ships its own DTDs at Contents/Frameworks/Interchange.framework/Versions/A/Resources/FCPXMLv1_0.dtd through v1_14.dtd, which is a better authority than the published page (that page is JS-rendered and returns a title and no body to a fetch). A five-clip timeline over the operator's own 59.94 GoPro selects was generated from AVFoundation-measured durations and validated clean against the shipped FCPXMLv1_13.dtd, with a negative control proving the validator can fail. So this stays absent for a REASON THAT IS NOW NARROW: emitting the file is understood and unbuilt in the library, and the round trip is one-way by design -- FCP's ProEditor.sdef exposes exactly one command, `get`, so an assembly can be handed over and read back but never written through AppleScript. Building this means a WalkKit emitter taking SegmentBuilder ranges to a spine, plus the decision of whether Walk writes whole clips or cut ranges, which nobody has scoped.",
         "coach.verdict":
-            "THE JUDGMENT ITSELF, and it is absent because no criteria ship with this build. #513 rules that Walk's output is a coaching verdict — SELLABLE AS SHOT / HAS POTENTIAL, WITH THIS / NOT WORTH THE TROUBLE, each with a reason and a next-flight lesson — and #499 rules that Pixel's hard-earned logic is what renders it, because \"a Walk not carrying her experience is a light meter.\" Present (see coach.bands, coach.criteria, coach.evidence): the band shape with band 2's change and forward question enforced in the initializer, the versioned criteria loader, the staleness check, and the evidence trail. Absent: any criteria to load. Every scan therefore reports coaching.available = false with this reason, and app.proofSheet DISPLAYS candidates and does not judge them. Install a criteria set at ~/Library/Application Support/Walk/criteria.json, or name one in WALK_CRITERIA, and the verdicts render from it. This entry moves out of the list when a criteria set ships with Walk, and a test fails if one ships while it is still here.",
-        "coreml.custom":
-            "#495: whether a custom .mlmodel compiles and loads without Xcode is open, and task #722 stands. classify.vision uses Vision's built-in 1303-identifier taxonomy, which needs no model file.",
+            "THE JUDGMENT ITSELF, and it is absent because no criteria ship with this build. #513 rules that Walk's output is a coaching verdict — KEEPER / HAS POTENTIAL, WITH THIS / NOT WORTH THE TROUBLE, each with a reason and a next-flight lesson — and #499 rules that Pixel's hard-earned logic is what renders it, because \"a Walk not carrying her experience is a light meter.\" Present (see coach.bands, coach.criteria, coach.evidence): the band shape with band 2's change and forward question enforced in the initializer, the versioned criteria loader, the staleness check, and the evidence trail. Absent: any criteria to load. THIS IS A STATEMENT ABOUT THE BUILD, NOT ABOUT THE HOST, and 0.5.7 corrects it for saying otherwise. It read \"Every scan therefore reports coaching.available = false with this reason\" — flatly, of every scan — while the next sentence told the operator to install a criteria set and promised the verdicts would render. Both cannot be true, and the host settled it: with Pixel's set installed at the default location this host reports coaching.available = true, criteria 1.2.0, 9 rules, while this entry still correctly said no criteria SHIP. A consumer reading the contract was told its coaching was dark at the moment it was lit. So, precisely: coaching.available is HOST state, and it is false only while no matching criteria set is installed; this entry is BUILD state, and it stays here until a set ships inside Walk (Coaching.shippedCriteriaJSON, still nil, tied to this entry by a test in both directions). app.proofSheet DISPLAYS candidates and does not judge them. Install a criteria set at ~/Library/Application Support/Walk/criteria.json, or name one in WALK_CRITERIA, and the verdicts render from it. This entry moves out of the list when a criteria set ships with Walk, and a test fails if one ships while it is still here.",
+        "coach.stills":
+            "A COACHING VERDICT ON A PHOTOGRAPH, and it is absent because the coach cannot read one — not because nobody wrote rules. Walk MEASURES stills (grade.still.api, measure.mean, measure.castCheck) and SHOWS them (sheet.timeSampled, ingest.stills); it cannot judge one. The coach reads a ClipScan.Candidate, and of the seven selectors in Criteria.Measurement exactly ONE transfers to a still with its meaning intact. relativeRise, relativeRisePercent, sigma and mergedFrames are UNDEFINED for a still: every one is derived from temporal neighbours — a local median baseline, a per-clip robust sigma, a count of merged adjacent frames — and a photograph has no neighbours. yMean and yMax are 10-bit Y-plane CODE VALUES read off a planar YCbCr buffer that a still never produces, so reusing those names on a still would be the same units error #740 found. That leaves vision.<identifier>, which is not enough to band a photograph and is not the judgment #499 puts in Pixel's hands. MEASURED 2026-09-12, and this is why the obvious path is worse than none: a still hand-built as a Candidate — the only route that exists today — was banded NOT WORTH THE TROUBLE by a rule reading relativeRise atMost 0.01, because the fabricated zero satisfied it. The verdict carried the evidence line `relativeRise measured 0.0, required atMost 0.0100, held true`: a photograph condemned by a measurement that does not exist for it, with an audit trail that looks complete. Building the path is therefore an ENGINE-CONTRACT decision and not an implementation one — Verdict identity is frame/timecode/seconds and `frame` runs through all seven Malformed cases; Candidate's video fields are non-optional so they cannot report `unmeasured` the way a nil confidence does; and what a still should be judged ON has not been scoped (see ingest.triage). That belongs to the operator and to #513. Named here so no consumer reads coach.bands, coach.criteria or coach.evidence as covering photographs.",
     ]
 
     public struct Check: Sendable {

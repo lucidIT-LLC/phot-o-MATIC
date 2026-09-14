@@ -58,6 +58,21 @@ extension Frame {
     /// in Walk is derived from it. The measurements come from the Y plane and
     /// from CIAreaAverage in linear light, before any of this.
     public func makeDisplayImage(maxWidth: CGFloat = 480, exposure: Float = 1.0) -> CGImage? {
+        guard let context = Frame.makeDisplayContext() else { return nil }
+        return makeDisplayImage(maxWidth: maxWidth, exposure: exposure, context: context)
+    }
+
+    /// The same picture, through a context the caller already built.
+    ///
+    /// ADDED IN 0.5.5 AND THE REASON IS A MEASUREMENT, not tidiness. The
+    /// no-argument version above builds a Metal device and a `CIContext` on
+    /// every call, which is correct for one candidate thumbnail and wrong for a
+    /// proof sheet: `ProofSheet` renders twelve cells per clip across a whole
+    /// folder, and at 0.3.0's shape that was one fresh Metal context per cell.
+    /// Building the context once per sheet and passing it here is the whole of
+    /// the change; nothing about the picture differs.
+    public func makeDisplayImage(maxWidth: CGFloat, exposure: Float = 1.0,
+                                 context: CIContext) -> CGImage? {
         // detachedCopy first: a CVPixelBuffer cannot leave withPixelBuffer's
         // `sending` result, and neither can a CIImage or a CGImage.
         guard let owned = detachedCopy() else { return nil }
@@ -67,16 +82,22 @@ extension Frame {
         if scale < 1.0 {
             image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         }
+        return context.createCGImage(image, from: image.extent,
+                                     format: .RGBA8,
+                                     colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    }
+
+    /// The display context, built the one way that is correct: the working
+    /// space PINNED to linear BT.2020 (see `VideoReader.workingColorSpace` for
+    /// what a default context silently throws away) and sRGB on output.
+    public static func makeDisplayContext() -> CIContext? {
         guard let device = MTLCreateSystemDefaultDevice() else { return nil }
-        let context = CIContext(mtlDevice: device, options: [
+        return CIContext(mtlDevice: device, options: [
             .workingColorSpace: VideoReader.workingColorSpace,
             .workingFormat: NSNumber(value: CIFormat.RGBAh.rawValue),
             .outputColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
             .cacheIntermediates: false,
         ])
-        return context.createCGImage(image, from: image.extent,
-                                     format: .RGBA8,
-                                     colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
     }
 }
 

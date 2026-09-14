@@ -346,3 +346,127 @@ func aCancelledScanStopsDecodingRatherThanFinishing() async throws {
     #expect(elapsed < .seconds(2),
             "took \(elapsed) to stop after cancel — cancellation is being noticed too late to matter")
 }
+
+// MARK: - the teaching spine, checked against the instrument
+
+@Test(.enabled(if: KnownAnswer.available), .timeLimit(.minutes(10)))
+func theLuminanceLessonQuotesTheEnginesOwnNumbers() async throws {
+    // TASK #740's LAST OWED EDIT, AND THE REASON IT IS A TEST AND NOT AN EDIT.
+    //
+    // `Coaching.luminanceIsNotLightning` is the one judgment Walk makes without
+    // a criteria file, on the grounds that it is Walk's OWN MEASUREMENT rather
+    // than anyone's taste. That grounding is a claim about provenance, and until
+    // this test existed nothing checked it: the numbers were prose, maintained
+    // by hand, and #740 required them to come FROM THE ENGINE rather than from a
+    // decision record.
+    //
+    // MEASURED 2026-09-12, and this is what the test caught. The lesson quoted
+    // frame 2388's Y-plane rise as 0.79%, as do four other surfaces. The engine
+    // says +0.87% (0.8655%) against its own local-median baseline. 0.79% is
+    // frame 2388 divided by frame 2387 ALONE (+0.7933%) — a different baseline
+    // rule than the detector uses, which nothing in the engine computes and no
+    // reader could have known was in play. It went unnoticed because the pair it
+    // travelled with agrees under BOTH rules: 2347 reads +6.02% either way
+    // (median +6.0204%, previous frame +6.0172%), so a self-consistent-looking
+    // pair carried a number off a rule the engine does not apply.
+    //
+    // Every figure in the lesson is therefore re-derived here from a scan, and
+    // the prose must contain the engine's rendering of it.
+    let reader = try await VideoReader(url: KnownAnswer.url)
+    var options = FrameScanner.Options(frames: nil, computeYPlane: true)
+    options.yPlaneStride = 1   // the Y mean is stride-dependent; see FrameScanner.Options
+    let series = try await FrameScanner.scan(reader, options: options)
+
+    let lesson = Coaching.luminanceIsNotLightning
+
+    // WHAT THE ENGINE SAYS, collected first; the prose is judged against it
+    // afterwards in BOTH DIRECTIONS. `contains` alone is not enough and the
+    // first draft of this test proved it: the detail mentions the Y-plane
+    // figure TWICE, so changing one mention to the wrong 0.79% still satisfied
+    // a containment check and the test passed on prose it was written to
+    // reject. A test that can only detect the LAST wrong number is the same
+    // defect it is guarding, one level up. So every number-shaped token in the
+    // detail must be one the engine produced, and every number the engine
+    // produced must appear.
+    var enginePercentages = Set<String>()
+    var engineConfidences = Set<String>()
+
+    // 1. The linear rises, in the space the detector actually measures.
+    let linear = EventDetector().detect(series)
+    for frame in [2347, 2388] {
+        let event = try #require(linear.events.first { $0.index == frame },
+                                 "frame \(frame) is no longer a candidate at all; the lesson is built on it being one")
+        enginePercentages.insert(String(format: "%+.2f%%", event.relativeRise * 100))
+    }
+
+    // 2. The Y-plane rise, from the SAME detector on the engine's own Y means,
+    //    so the baseline rule is the engine's and not this test's arithmetic.
+    //    The floor is lowered and merging switched off for one reason: at the
+    //    shipped 1% floor frame 2388 is NOT an event on this plane, which is
+    //    itself the lesson, asserted below.
+    let yMeans = series.samples.map { $0.yMean ?? .nan }
+    let holes = yMeans.filter(\.isNaN).count
+    #expect(holes == 0, "\(holes) Y means are missing; the Y-plane figure would be measured on a hole")
+    let yPlane = EventDetector(options: .init(minimumRelativeRise: 0.001, mergeWithin: 0))
+        .detect(values: yMeans, indices: series.indices, times: series.samples.map(\.time))
+    for frame in [2347, 2388] {
+        let event = try #require(yPlane.events.first { $0.index == frame })
+        enginePercentages.insert(String(format: "%+.2f%%", event.relativeRise * 100))
+    }
+
+    // 3. THE CLAIM THAT CARRIES THE LESSON, not just its numbers: on the
+    //    gamma-encoded plane the higher-confidence frame is not a candidate.
+    let yPlaneAsShipped = EventDetector()
+        .detect(values: yMeans, indices: series.indices, times: series.samples.map(\.time))
+    #expect(!yPlaneAsShipped.events.contains { $0.index == 2388 },
+            "the lesson states 2388 is under the 1% floor on the Y plane; the engine now reports it as an event there")
+    #expect(yPlaneAsShipped.events.contains { $0.index == 2347 },
+            "2347 must still clear the floor on the Y plane, or the contrast the lesson draws is gone")
+
+    // 4. The confidences, classified now rather than quoted from #495.
+    let classifier = Classifier()
+    for frame in [2347, 2388] {
+        let picture = try await reader.frame(at: frame)
+        let confidence = try await classifier.classify(picture).confidence("lightning")
+        engineConfidences.insert(String(format: "%.4f", confidence))
+    }
+
+    // 5. THE PROSE, JUDGED BOTH WAYS.
+    //
+    //    A signed percentage to two decimals, and a bare four-decimal fraction,
+    //    are the two number shapes this lesson trades in. The "1% floor" and
+    //    "a tenth of the brightness" carry no decimal and no sign, so they are
+    //    deliberately outside both patterns — they are claims about the engine
+    //    checked in section 3 above, not readings off it.
+    let quotedPercentages = Set(lesson.detail.matches(of: /[+-][0-9]+\.[0-9]{2}%/).map { String($0.output) })
+    // Lookahead only — MEASURED: Swift Regex rejects lookbehind outright with
+    // "lookbehind is not currently supported", at compile time, which is the
+    // good kind of failure.
+    let quotedConfidences = Set(lesson.detail.matches(of: /[0-9]\.[0-9]{4}(?![0-9])/).map { String($0.output) })
+
+    for quoted in quotedPercentages.subtracting(enginePercentages) {
+        Issue.record("""
+            the lesson quotes \(quoted) and the engine did not measure it. \
+            The engine's rises on this clip are \(enginePercentages.sorted()). \
+            #740 requires these figures to come FROM THE ENGINE and not from a \
+            decision record: 0.79% reached this lesson that way — it is frame \
+            2388 against frame 2387 alone, not against the detector's baseline.
+            """)
+    }
+    for quoted in quotedConfidences.subtracting(engineConfidences) {
+        Issue.record("the lesson quotes a confidence of \(quoted); the classifier measured \(engineConfidences.sorted())")
+    }
+    for measured in enginePercentages.subtracting(quotedPercentages) {
+        Issue.record("the engine measured \(measured) and the lesson does not say so")
+    }
+    for measured in engineConfidences.subtracting(quotedConfidences) {
+        Issue.record("the classifier measured \(measured) and the lesson does not say so")
+    }
+
+    // 6. The spaces must be NAMED. #740's whole finding was a number printed
+    //    without the thing that makes it mean anything, and a lesson that
+    //    compares 36% to 0.8% without saying they are different quantities
+    //    teaches the misreading it exists to prevent.
+    #expect(lesson.detail.contains("linear BT.2020"))
+    #expect(lesson.detail.contains("gamma-encoded"))
+}

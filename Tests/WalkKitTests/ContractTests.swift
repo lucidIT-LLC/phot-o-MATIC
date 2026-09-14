@@ -108,3 +108,38 @@ import Testing
                 "\(name) claims to have arrived in \(introduced), which is newer than \(Walk.version)")
     }
 }
+
+// MARK: - 0.5.7: the custom Core ML path, and the handoff that is still absent
+
+// THE PAIR MATTERS MORE THAN EITHER HALF. 0.5.7 moved one entry out of
+// notImplemented and deliberately left its neighbour in, on the same day, from
+// the same session. Asserting both together is what stops the next session
+// reading "Core ML landed" as "the Final Cut work landed."
+
+@Test func theCustomCoreMLPathIsDeclaredAndCarriesNoReason() {
+    #expect(Walk.capabilities["coreml.custom"] == "0.5.7")
+    #expect(!Walk.notImplemented.contains("coreml.custom"))
+    // A present capability with a lingering denial is the drift #507 found,
+    // pointing the other way.
+    #expect(Walk.notImplementedReasons["coreml.custom"] == nil)
+}
+
+@Test func fcpxmlExportIsStillAbsentAndSaysWhyPrecisely() {
+    #expect(Walk.notImplemented.contains("fcpxml.export"),
+            "no WalkKit code emits FCPXML; a validated file generated beside the library is not the library doing it")
+    let reason = Walk.notImplementedReasons["fcpxml.export"]
+    #expect(reason?.contains("NO WalkKit CODE EMITS FCPXML") == true,
+            "the reason must name what is missing, not merely that something is")
+    // #493 rejected Final Cut as a CONTROL surface and kept it as a HANDOFF
+    // target. The reason has to carry that distinction or the next reader will
+    // take the rejection as covering both.
+    #expect(reason?.contains("handoff") == true)
+}
+
+@Test func skippingASixInTheVersionDoesNotBreakOrdering() {
+    // 0.5.7 follows 0.5.5 on purpose. The comparison is numeric, so the gap is
+    // harmless — asserted rather than assumed, because a consumer pinned to the
+    // skipped version must still be told it is older.
+    #expect(Walk.check(expecting: "0.5.5").detail.contains("NEWER"))
+    #expect(Walk.check(expecting: "0.5.8").detail.contains("OLDER"))
+}

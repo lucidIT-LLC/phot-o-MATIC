@@ -1,0 +1,44 @@
+{
+  "name": "walk",
+  "version": "0.5.7",
+  "description": "Walk — on-device footage triage for photographers. Scans video on Apple silicon and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
+  "author": {
+    "name": "LucidIT, LLC",
+    "url": "https://o-matic.ai"
+  },
+  "homepage": "https://o-matic.ai",
+  "repository": "https://github.com/lucidIT-LLC/Walk",
+  "license": "BUSL-1.1",
+  "keywords": [
+    "omatic",
+    "photography",
+    "video",
+    "vision",
+    "coreml",
+    "triage",
+    "codex"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Walk",
+    "shortDescription": "Find the frames worth keeping in a folder of footage, measured on-device.",
+    "longDescription": "Walk decodes video on Apple silicon and finds the frames worth a second look: a whole-frame luminance-rise detector paired with an on-device Vision classifier, with every candidate carrying its frame index, timecode, the rise over a local median baseline, 10-bit Y-plane statistics, classifier confidences, and a written thumbnail you can open. The classification runs on the machine, so a clip of several thousand frames costs no tokens to look at. The measurements are evidence, not a ranking: a frame that scores badly can be the photograph, and sorting by brightness is how a first pass loses real events. Requires macOS 26 or later on Apple silicon — the engine links Vision, CoreML and AVFoundation and has no Intel build and no port.",
+    "developerName": "o-MATIC AI Research Lab",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://o-matic.ai",
+    "privacyPolicyURL": "https://o-matic.ai",
+    "termsOfServiceURL": "https://o-matic.ai",
+    "defaultPrompt": [
+      "What does this build of Walk actually do, and what is missing?",
+      "Go walk this folder of footage and show me the candidates.",
+      "Scan this clip and show me the frames worth a second look.",
+      "Build a proof sheet from the candidates in this clip.",
+      "Show me the segments where something happened in this clip."
+    ],
+    "brandColor": "#00B5AD"
+  }
+}

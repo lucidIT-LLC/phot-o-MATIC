@@ -1,0 +1,12 @@
+{
+  "walk": {
+    "command": "/bin/sh",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/bin/omatic-walk-launch.sh"
+    ],
+    "env": {
+      "WALK_CRITERIA": "${WALK_CRITERIA}"
+    },
+    "cwd": "${CLAUDE_PLUGIN_ROOT}"
+  }
+}

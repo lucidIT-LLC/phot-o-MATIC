@@ -1,0 +1,184 @@
+{
+  "criteria": {
+    "version": "1.2.0",
+    "walk": "0.5.7",
+    "owner": "Andy — Walk's photography coach. The judgment in these rules is his.",
+    "established": "2026-09-12"
+  },
+  "rules": [
+    {
+      "id": "bolt-the-classifier-is-sure-of",
+      "band": "sellableAsShot",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atLeast",
+          "value": 0.6
+        }
+      ],
+      "reason": "Per decision #504 and task #740, the bolt is well formed and reads as lightning on its own shape. The bolt is well formed and reads as lightning on its own shape — branching that holds together, a channel that stays legible against the sky, and enough separation from the cloud to be recognisable at any size. That is the thing a buyer is paying for. It is deliberately judged with no condition on brightness at all, because the frame that proved this rule was a tenth as bright as the one a brightness ranking would have handed back.",
+      "origin": "decision #504, correcting #495",
+      "nextFlight": "This is your exposure. Lock it and stop letting the camera hunt — an auto-exposing camera re-meters on the flash and the next strike lands a stop off. Keep the interval running rather than chasing individual strikes; frames like this one arrive when the camera was already rolling, not when you reacted."
+    },
+    {
+      "id": "thin-distant-bolt-clean-sky",
+      "band": "sellableAsShot",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atLeast",
+          "value": 0.45
+        },
+        {
+          "measurement": "relativeRisePercent",
+          "op": "atMost",
+          "value": 10.0
+        }
+      ],
+      "reason": "A thin, distant, well-formed bolt against a sky it barely lifted. The low rise is the reason this is good, not a caveat on it: the scene did not blow out, the foreground kept its tone, and the bolt reads as a drawn line rather than a white flare. Shape without brightness is the most saleable storm frame there is and the hardest to get.",
+      "origin": "Shape over brightness was measured on storm footage, 2026-09-12. The upper bound on rise is the coach's own craft judgment — no measurement sets it.",
+      "nextFlight": "Distance bought you this. Next flight, hold that stand-off rather than closing in — a nearer strike is brighter, not better, and it takes the sky with it. If the horizon is soft, that is the frame to fix, not the exposure."
+    },
+    {
+      "id": "storm-structure-worth-selling",
+      "band": "sellableAsShot",
+      "when": [
+        {
+          "measurement": "vision.thunderstorm",
+          "op": "atLeast",
+          "value": 0.5
+        },
+        {
+          "measurement": "relativeRisePercent",
+          "op": "atMost",
+          "value": 15.0
+        }
+      ],
+      "reason": "This is not a strike and it does not need to be. The classifier is reading storm structure — the shelf, the anvil, the sculpted underside — and that sells on its own, steadily, to people who will never buy a bolt. The modest rise says the light is still describing the cloud rather than flattening it.",
+      "origin": "The storm identifiers are the ones the built-in classifier reports, measured 2026-09-12. The thresholds and the craft call are the coach's judgment; no measurement sets them.",
+      "nextFlight": "Structure wants a wider frame and a lower horizon than a strike does. Next flight, give the cloud two thirds of the frame and put something with known scale on the ground line — without scale a shelf cloud is an abstraction, and abstractions do not sell as weather."
+    },
+    {
+      "id": "bolt-core-on-the-ceiling",
+      "band": "hasPotentialWithThis",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atLeast",
+          "value": 0.25
+        },
+        {
+          "measurement": "relativeRisePercent",
+          "op": "atLeast",
+          "value": 20.0
+        },
+        {
+          "measurement": "yMax",
+          "op": "atLeast",
+          "value": 1020
+        }
+      ],
+      "reason": "A real strike, and the channel itself is sitting on or against the 10-bit ceiling. Clipped highlight has no detail to recover and no colour left in it, so the bolt prints as a paper-white cut-out while everything the flash lit came up with it. The strike is genuine; the rendering of it is not finished.",
+      "origin": "Brightness is reported as a 10-bit code value with a ceiling of 1023, measured 2026-09-12. The guard sits below the ceiling because the fast triage pass samples the frame and can miss the true peak.",
+      "change": "Recover the highlights with a MASKED move on the bolt channel alone — paint the mask to the bolt and its immediate halo, then bring that back. Do not pull global exposure: a rise of this size means the foreground came up with the flash, and a global pull takes the foreground back down with the bolt.",
+      "forwardQuestion": "Where did you want to go with this one — is the bolt the subject, or is it the light on the landscape?",
+      "nextFlight": "Clipping is a capture problem, not a grade problem. Next flight, set exposure for the strike and not for the scene — meter the dark sky, then close down another stop and a half. A frame that is too dark between strikes is fixable; a clipped channel is gone."
+    },
+    {
+      "id": "real-strike-that-lifted-the-whole-scene",
+      "band": "hasPotentialWithThis",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atLeast",
+          "value": 0.12
+        },
+        {
+          "measurement": "relativeRisePercent",
+          "op": "atLeast",
+          "value": 20.0
+        }
+      ],
+      "reason": "The classifier sees a bolt and the whole frame jumped with it. A rise this large is the flash lighting the entire scene, not just the channel — so the sky went milky, the foreground lost its shadows, and the separation that makes a strike read got flattened. There is a photograph in here, but the flash is currently doing the exposing for you.",
+      "origin": "Measured on storm footage, 2026-09-12: a strike at 0.34 confidence lifted the whole frame 36%, against a better frame at 0.66 confidence and 3.7%.",
+      "change": "Put the contrast back locally: one masked Levels move that holds the bolt and pulls the sky's black point down, so the channel separates from the glow it created. One move, on the sky, not a global curve.",
+      "forwardQuestion": "Where did you want to go? If this was meant to be the landscape lit by the storm, the grade is nearly right; if the bolt was the subject, it needs the sky taken away from it.",
+      "nextFlight": "Brightness is not the keeper signal and this frame is the proof — the better frame in this same clip was a tenth as bright. Next flight, stop reviewing by which frame looks brightest on the back of the camera and let the whole interval run; the thin ones are the ones you will sell."
+    },
+    {
+      "id": "bolt-the-classifier-half-recognizes",
+      "band": "hasPotentialWithThis",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atLeast",
+          "value": 0.15
+        }
+      ],
+      "reason": "Something bolt-shaped is there and the classifier will not commit to it. In storm work that reads one of three ways, and all three are composition rather than exposure: the bolt is partly behind cloud, it runs out of the frame edge, or it is competing with a brighter thing for attention. The subject is present and the frame is not yet built around it.",
+      "origin": "The coach's own judgment — no measurement sets a mid-confidence threshold. The measured anchors either side, 2026-09-12: a confirmed strike read 0.34 and the frame after it read 0.013.",
+      "change": "Crop to commit: put the channel on a third with its full length inside the frame, and lose the dead sky on the opposite side. A bolt the classifier half-recognises is almost always a bolt the composition half-committed to.",
+      "forwardQuestion": "Where did you want to go? Tell me whether this was a wide storm frame or a bolt portrait, because the crop is a different crop.",
+      "nextFlight": "Frame wider than the bolt you expect and crop later — a strike clipped by the frame edge cannot be recovered, and at 4K you have the resolution to give yourself the margin. Next flight, aim at where the last three strikes landed, not at where the last one did."
+    },
+    {
+      "id": "storm-structure-flat-light",
+      "band": "hasPotentialWithThis",
+      "when": [
+        {
+          "measurement": "vision.thunderstorm",
+          "op": "atLeast",
+          "value": 0.25
+        }
+      ],
+      "reason": "There is storm structure in this frame but it is not being described by the light. Flat, even illumination on a cloud takes away the modelling that makes weather look like weather — the shelf reads as grey mass rather than as something with a leading edge and an underside.",
+      "origin": "The storm identifier is the one the built-in classifier reports, measured 2026-09-12. The threshold and the craft call are the coach's judgment; no measurement sets them.",
+      "change": "Bring back the modelling with a local contrast move on the cloud base only — masked, with the sky above it left alone, so the underside separates from the mass. Not clarity across the whole frame; that hardens the horizon and gives away the edit.",
+      "forwardQuestion": "Where did you want to go with this — a weather record, or a landscape that happens to have a storm in it?",
+      "nextFlight": "Structure needs raking light. Next flight, shoot the storm's lit flank rather than its shadowed one, and take it earlier or later in the approach — the twenty minutes either side of the shelf passing overhead are where the modelling is."
+    },
+    {
+      "id": "bright-but-not-lightning",
+      "band": "notWorthTheTrouble",
+      "when": [
+        {
+          "measurement": "relativeRisePercent",
+          "op": "atLeast",
+          "value": 20.0
+        },
+        {
+          "measurement": "vision.lightning",
+          "op": "atMost",
+          "value": 0.12
+        },
+        {
+          "measurement": "vision.thunderstorm",
+          "op": "atMost",
+          "value": 0.15
+        }
+      ],
+      "reason": "This is a brightness change, not a photograph. Something large got brighter — the sun came through a gap, the camera re-metered, a light swept the frame — and the detector correctly flagged it because the detector is a whole-frame luminance rise. The classifier does not see a storm subject in it, and there is nothing here to grade toward.",
+      "origin": "Measured 2026-09-12: on one action-camera clip, 38 flagged frames were brightness changes with no storm subject in any of them.",
+      "nextFlight": "The tell is a big rise with no subject under it, and it is usually the camera and not the sky. Next flight, lock exposure and white balance before the storm arrives so an auto-adjustment stops generating candidates — you will cut your review pile substantially and lose nothing."
+    },
+    {
+      "id": "nothing-the-classifier-recognizes",
+      "band": "notWorthTheTrouble",
+      "when": [
+        {
+          "measurement": "vision.lightning",
+          "op": "atMost",
+          "value": 0.15
+        },
+        {
+          "measurement": "vision.thunderstorm",
+          "op": "atMost",
+          "value": 0.25
+        }
+      ],
+      "reason": "The detector found a luminance event and the classifier finds no storm subject in it at any useful confidence. Plainly: it cleared a statistical threshold, which is a reason to look, not a reason to keep. Spending an edit here is spending it on the threshold rather than on a photograph.",
+      "origin": "The coach's own judgment — no measurement sets this threshold. Measured 2026-09-12 on storm footage.",
+      "nextFlight": "A candidate is a question, not an answer — Walk's own threshold is the clip's statistics or a 1% floor, whichever is higher, and both are reasons to look rather than verdicts. Next flight, judge your take by how many frames carried a subject, not by how many the detector flagged. One tell is still worth learning by hand, and it sits here rather than in a rule of its own because Walk cannot check it for you: a bright frame one or two frames after a frame the classifier DID call lightning is the flash decaying, with the channel already gone from it. The coach judges each candidate in isolation and cannot see its neighbour, so it will never tell you that a real strike preceded this one — look at the frame before this one yourself before you spend any time on it."
+    }
+  ]
+}

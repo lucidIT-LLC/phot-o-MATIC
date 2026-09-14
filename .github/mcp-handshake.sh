@@ -21,7 +21,7 @@
 set -uo pipefail
 
 BIN="${1:?usage: mcp-handshake.sh <path to walk-mcp>}"
-EXPECTED_TOOLS="walk_contract walk_grade walk_scan walk_scan_folder walk_segments"
+EXPECTED_TOOLS="walk_contract walk_grade walk_proof_sheet walk_scan walk_scan_folder walk_segments"
 status=0
 
 fail() { echo "::error::$1"; status=1; }

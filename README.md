@@ -61,6 +61,30 @@ the detector derives its threshold from the clip instead of carrying a constant
 - **Writes** HEVC Main10 + HLG, retimed so a one-frame event survives a 60→30
   conform, and re-reads what it wrote to prove nothing was lost
 
+**A folder, shown**
+
+- **A time-sampled proof sheet** over mixed media — every still one cell, every
+  clip a strip of frames spaced evenly across its whole duration. Distinct from
+  a scan: a candidate is a luminance event, so a clip whose light never changes
+  produces no candidates and no picture, and two of eight GoPro clips did
+  exactly that. Sampling *time* gives every clip a picture of its arc.
+- **Progressive.** The manifest is written before a single pixel is decoded and
+  rewritten atomically as cells land, and every cell carries a tiny tone-mapped
+  placeholder inline. Measured over the operator's DJI card — 8 clips, 2 JPG,
+  1 DNG, 5.8 GB: the layout is on disk at 0.73 s, all 99 placeholders by 4.5 s,
+  all 99 sharp cells by 11.0 s.
+- **Every cell carries its evidence** — frame index, timecode, seconds,
+  dimensions, fps, duration, codec, transfer function and the tone map that was
+  applied. For a DJI clip with a sibling `.SRT`, the shutter and ISO
+  *distribution over the whole file* — never frame 1, where the aircraft is
+  still settling — and a 180-degree shutter comparison against 1/(2 × fps).
+- **Walk emits the data, not the page.** There is no HTML, no CSS and no styling
+  in the engine; `manifest.json` is the artifact and the viewer is separate.
+- **It displays and measures. It does not judge.** Nothing is banded, ranked,
+  scored or sorted by interest, and the shutter comparison is a measurement
+  against a named convention rather than a verdict on the footage — see design
+  rule 5 and `ingest.dump` in `walk_contract`.
+
 **Stills**
 
 - **HLG → SDR conversion** (ITU-R BT.2100 / BT.2390) with a filmic tone map
@@ -70,7 +94,7 @@ the detector derives its threshold from the clip instead of carrying a constant
 **From a conversation**
 
 - **An MCP server over stdio** — `walk_scan`, `walk_scan_folder`,
-  `walk_segments`, `walk_grade`, `walk_contract`. Structured JSON per candidate,
+  `walk_proof_sheet`, `walk_segments`, `walk_grade`, `walk_contract`. Structured JSON per candidate,
   a written PNG path per candidate so a frame can be *shown* rather than
   described, and the version contract exposed through the same surface so a
   consumer can verify the server against the library it wraps.
@@ -89,6 +113,8 @@ walk scan <video> [--json] [--frames a-b] [--no-vision] [--fast]
                   [--sigma <k>] [--floor <fraction>]
 walk segments <video> [--handles <sec>] [--lead <sec>] [--tail <sec>]
                       [--out <dir>] [--fps <n>] [--dry-run]
+walk sheet <folder> [--out <dir>] [--frames <n>] [--cell-width <px>]
+                    [--recursive] [--no-placeholders] [--max-items <n>] [--json]
 walk identifiers [substring]
 walk <input> <output> [neutral|dramatic] [targetNits]
 walk contract [--expect <version>]
@@ -114,6 +140,9 @@ walk_scan          path, from_frame, to_frame, vision, identifiers,
                    y_plane_stride, sigma, floor, thumbnails, thumbnail_dir,
                    thumbnail_width, inline_images, max_candidates, criteria
 walk_scan_folder   path | paths, recursive, max_clips, + every walk_scan option
+walk_proof_sheet   path | paths, out_dir, frames_per_clip, cell_width,
+                   placeholder_width, jpeg_quality, placeholders, recursive,
+                   max_items
 walk_segments      path, handles | lead_seconds + tail_seconds, out_dir, fps,
                    from_frame, to_frame, vision, sigma, floor
 walk_grade         input, output, look (neutral|dramatic), target_nits
@@ -182,7 +211,7 @@ COACHING VERDICT  none rendered
     default: /Users/lucid/Library/Application Support/Walk/criteria.json
 
   The bands a criteria set fills:
-    SELLABLE AS SHOT
+    KEEPER
       Good, and why — the reason names the craft a buyer is paying for, not the number.
     HAS POTENTIAL, WITH THIS
       One specific change that would make it sell, then where you were going.
@@ -204,6 +233,44 @@ grade+measure 446.5 ms
 ```
 
 ## From a conversation
+
+### As a plugin (decision #534)
+
+Walk ships as an o-MATIC plugin, and **this repository is the plugin**: the
+root holds `.mcp.json`, `.claude-plugin/`, `.codex-plugin/`, `skills/` and a
+prebuilt `bin/walk-mcp`, so a host installs it without a toolchain.
+
+```
+claude plugin install walk@o-matic-walk
+```
+
+The floor is declared honestly in both manifests and **enforced in the
+launcher**: macOS 26 or later on Apple silicon. There is no Intel build and no
+port — the engine links Vision, CoreML and AVFoundation directly, which is why
+the classification runs on the machine and costs nothing per frame.
+
+A host that cannot run it does **not** get silence. `bin/omatic-walk-launch.sh`
+falls back to a degraded MCP server that advertises zero tools and puts the
+reason in its `instructions` string, because a spawn that simply dies is
+indistinguishable from a plugin nobody has configured yet.
+
+**Phase 1 ships the engine and no judgment.** No criteria set is inside the
+payload, so every scan returns `coaching.available: false` with its reason and
+the paths searched. Read that field; do not substitute a verdict for it.
+
+To rebuild the payload from source:
+
+```
+make stage-plugin    # stages bin/walk-mcp and verifies what a host would get
+make plugin-check    # the same verification on its own
+```
+
+`stage-plugin` calls `.github/stage-binary.sh` rather than copying the binary
+itself, so the plugin binary cannot silently disagree with `Walk.version` —
+that script's header records what happened the last time a front door had no
+shared check.
+
+### As a bare MCP server
 
 ```
 make install-mcp     # copies walk-mcp to ~/.local/bin and prints the one command
@@ -249,7 +316,7 @@ make better photographers."*
 
 | Band | What it owes |
 |---|---|
-| **SELLABLE AS SHOT** | Good, and why — the reason names the craft a buyer is paying for, not the number |
+| **KEEPER** | Good, and why — the reason names the craft a buyer is paying for, not the number |
 | **HAS POTENTIAL, WITH THIS** | The one specific change, then *"Where did you want to go?"* |
 | **NOT WORTH THE TROUBLE** | Why, plainly, so the tell is learned and not shot again |
 
@@ -318,7 +385,7 @@ threshold it was tested against.
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 80 tests
+make test                     # 141 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
@@ -371,6 +438,34 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
 - **Passthrough writing is not shipped.** Open defect task #721: 22 frames lost
   with every success signal returning true.
 - **No audio.** Never read, retimed or written.
+- **The coaching verdict does not reach a photograph.** Walk measures stills and
+  shows them in a sheet; it cannot judge one. Of the seven selectors a criteria
+  rule can read, exactly one — `vision.<identifier>` — transfers to a still with
+  its meaning intact. `relativeRise`, `relativeRisePercent`, `sigma` and
+  `mergedFrames` are all derived from neighbouring frames, and a photograph has
+  no neighbours; `yMean` and `yMax` are 10-bit Y-plane code values off a planar
+  buffer a still never produces. MEASURED 2026-09-12: a still hand-built as a
+  candidate — the only route that exists — was banded NOT WORTH THE TROUBLE on a
+  fabricated `relativeRise` of 0, with the evidence line reading *measured 0.0,
+  held true*. Closing it is an engine-contract decision, not an implementation
+  one; `coach.stills` in `walk_contract` carries the full reason.
+- **A proof-sheet cell from a clip carries the filmic curve whether or not the
+  clip is HLG.** `Frame.makeDisplayImage` has applied the Hable curve to every
+  picture Walk writes since 0.3.0, and the sheet uses that same path rather than
+  growing a second one. MEASURED 2026-09-12 on frame 450 of
+  `DJI_20260913024928_0001_D.MP4`: Walk's path renders R52.5 G57.5 B62.0 against
+  R60.8 G68.0 B76.8 for a plain managed HLG→sRGB conversion of the same frame —
+  about 15% darker, which is the highlight rolloff doing what it is for. On an
+  SDR source that curve is applied to footage that is display-referred already.
+  Each item's `toneMap` field in the manifest names exactly what was applied, so
+  a dark cell is readable as a transform rather than as the footage. Not
+  changed here: altering a tested path shared with every candidate thumbnail is
+  a separate decision with its own known answers to re-measure.
+- **The placeholder is not the frame the sharp cell shows.** It is the nearest
+  sync sample, because infinite seek tolerance is what makes the placeholder
+  pass fast — 0.041 s/frame against 0.079 s. At 20 pixels, blurred, there is no
+  visible difference, and the manifest's `placeholderContract.provenance` says
+  so rather than leaving it to be assumed.
 - **The app is not sandboxed.** The trade is stated in `WalkApp.swift`.
 - **A handle shortfall over a partial scan is computed against the container's
   frame estimate, not a measurement.** Every segment result says which basis it
