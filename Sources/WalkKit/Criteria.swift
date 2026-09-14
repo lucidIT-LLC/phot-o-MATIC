@@ -5,10 +5,10 @@ import Foundation
 ///
 /// WHY THIS FILE EXISTS AND WHY IT IS DATA RATHER THAN CODE. #499, operator
 /// ruling: *"it should have pixel hard earned logic tied into it… we need pixel
-/// experience driving it."* A Walk that does not carry her experience "is a
+/// experience driving it."* A Walk that does not carry the coach's experience "is a
 /// light meter", and 0.4.1 shipped the light meter because there was no
 /// mechanism to produce a judgment. The mechanism is this: Andy's logic stops
-/// being prose containing numbers and becomes DATA Walk executes and her skill
+/// being prose containing numbers and becomes DATA Walk executes and his skill
 /// explains. One source of truth, two readers.
 ///
 /// It closes a MEASURED defect rather than tidying an idea. Pixel 2.2.0 shipped

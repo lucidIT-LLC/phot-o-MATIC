@@ -50,6 +50,43 @@ reported "does not report a version", which reads as a broken build — the buil
 product printed its version correctly throughout. Fixed in
 `.github/stage-binary.sh`, so all three front doors get it at once.
 
+**THE ONE QUOTED PRONOUN, PARAPHRASED RATHER THAN EDITED.** A served
+`walk_contract` string carried decision #499's clause in quotation marks, and
+after the rename it read *"Andy's hard-earned logic ... because \"a Walk not
+carrying **her** experience is a light meter.\""* Operator ruling: paraphrase it
+out of quotation marks. #499's verbatim text stays exact where it is
+authoritative — in `factory.decisions`, untouched, pronoun and all, because that
+record is his words on the date he said them. What ships to a customer is not
+the quotation, it is the doctrine. It now reads:
+
+> #499 rules that Andy's hard-earned logic is what renders it — a Walk that does
+> not carry it is a light meter.
+
+No `[sic]`, no `[his]`: a customer-facing string is the wrong place for an
+editorial apparatus. SWEPT for others rather than fixing only the one found —
+three more hits, all in source comments rather than served strings, and the two
+verbatim #499 fragments among them were LEFT in their quotation marks, a doc
+comment being the right place for a quotation. Measured over the wire after
+rebuild: the served contract contains no "her" and no "Pixel".
+
+**THE STALE-CONSUMER GATE COULD NO LONGER FAIL, AND HAS BEEN RE-AIMED.** It read
+`--expect 0.2.0` and was named for "Pixel 2.5.0 §8.5". MEASURED off the live host
+surface: the consumer is now `andy-photo-coach` 2.6.0 in studio pack 1.10.1,
+`pixel-photo-coach` is absent, and its §8.5 pin has been corrected to 0.5.7 — so
+the gate named a consumer that no longer exists AND watched a defect already
+closed. Replaced by the permanent half of it, in two steps:
+
+- **the OLDER-consumer refusal**, with the version DERIVED from `Walk.version`
+  rather than written down, so it cannot go stale the way the literal did. The
+  newer and unparseable directions already had their own steps; older did not.
+- **the real consumer's pin, read out of the installed skill rather than out of
+  a comment**, required to be ACCEPTED. This is the part that catches the next
+  drift. Absent on a CI runner, where it says "not evaluated" rather than
+  passing silently — absence is not agreement.
+
+Both PROVEN able to fail: `--expect 0.0.1` refused while `--expect 0.5.7` is
+accepted, and a fixture skill pinned to 0.2.0 drives the second step red.
+
 **PIXEL → ANDY ACROSS THE REPOSITORY (decision #538).** The operator's rule was
 the test for every hit: *"the only part of pixel that survives is the logic we
 had in it."* The logic survives untouched — the nine rules and their ordering,

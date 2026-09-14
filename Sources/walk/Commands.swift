@@ -163,7 +163,7 @@ enum ScanCommand {
         // reproduce it under any baseline, and correctly wrote down that `rise`
         // was not reproducible. Both measurements were right. They are different
         // quantities: `rise` is CIAreaAverage in PINNED LINEAR BT.2020 light,
-        // hers was the gamma-encoded Y-plane mean. Nothing in the output said so.
+        // his was the gamma-encoded Y-plane mean. Nothing in the output said so.
         //
         // THE LINE THIS REPLACES WAS ALSO WRONG, and in the same family. It read
         // "the CIContext default is ExtendedLinearSRGB and measures 4.2x less of

@@ -136,18 +136,69 @@ jobs:
           fi
           echo "correctly refused"
 
-      # Pixel 2.5.0 §8.5 is written against Walk 0.2.0 — two releases back now.
-      # The contract is SUPPOSED to notice that and this step proves it does, by
-      # requiring the refusal. It is not a failure of Walk; it is Walk detecting
-      # a stale consumer, and it stays here until that consumer is re-verified.
-      - name: Contract — MUST flag the known stale consumer (Pixel 2.5.0 expects 0.2.0)
+      # ---------------------------------------------------------------------
+      # THE OLDER-CONSUMER REFUSAL. RE-AIMED 2026-09-13, AND THE RE-AIM IS THE
+      # POINT: THIS STEP HAD STOPPED BEING ABLE TO FAIL.
+      #
+      # It used to read `--expect 0.2.0` and was named for a specific consumer:
+      # "Pixel 2.5.0 §8.5 expects 0.2.0". Both halves have since gone.
+      # MEASURED off the live host surface 2026-09-13:
+      #   - the consumer is `andy-photo-coach` 2.6.0 in studio pack 1.10.1;
+      #     `pixel-photo-coach` is absent from the installed pack and from the
+      #     live skill listing (decision #538);
+      #   - its §8.5 now reads `walk contract --expect 0.5.7`, so the drift this
+      #     step was watching is FIXED.
+      #
+      # A gate naming a consumer that no longer exists, watching a defect that is
+      # already closed, is a check that can no longer fail. That is the one thing
+      # this session has been systematically removing, so it does not survive in
+      # that form.
+      #
+      # WHAT REPLACES IT IS THE PERMANENT HALF. The defect class is not "0.2.0 is
+      # old" — it is "the contract must refuse a consumer written against a
+      # different Walk", and the OLDER direction had no other coverage here
+      # (newer and unparseable each have their own step above). The version is
+      # now DERIVED from Walk.version rather than written down, so it cannot go
+      # stale the way the literal did.
+      - name: Contract — MUST reject an OLDER consumer
         run: |
-          if .build/release/walk contract --expect 0.2.0; then
-            echo "::error::the contract accepted a consumer written against 0.2.0"
+          V=$(.build/release/walk --version)
+          # One major below the current version: always strictly older, never a
+          # literal anyone has to remember to update.
+          OLDER="0.0.1"
+          [ "$V" = "$OLDER" ] && OLDER="0.0.2"
+          echo "current $V, testing refusal of $OLDER"
+          if .build/release/walk contract --expect "$OLDER"; then
+            echo "::error::the contract accepted a consumer written against $OLDER"
             exit 1
           fi
-          .build/release/walk contract --expect 0.2.0 || true
-          echo "correctly flagged — Pixel 2.5.0 must be re-verified against 0.4.0"
+          .build/release/walk contract --expect "$OLDER" || true
+          echo "correctly refused an older consumer"
+
+      # AND THE REAL CONSUMER, where it is present. This is the part that
+      # actually catches the next drift: it reads the pin out of the installed
+      # skill rather than out of a comment, and requires the contract to ACCEPT
+      # it. If the skill is re-pinned to something stale, or Walk moves without
+      # the skill following, this goes red.
+      #
+      # It is not present on a CI runner, and it SAYS SO rather than passing
+      # silently — absence is not agreement.
+      - name: Contract — the installed coach skill's pin still agrees
+        run: |
+          SKILL=$(ls -d "$HOME"/.claude/plugins/cache/o-matic-studio/studio/*/skills/andy-photo-coach/SKILL.md 2>/dev/null | tail -1 || true)
+          if [ -z "$SKILL" ]; then
+            echo "not evaluated — the coach skill is not installed on this host"
+            echo "  (expected on a CI runner; this check is meaningful on a developer machine)"
+            exit 0
+          fi
+          PIN=$(grep -oE 'walk contract --expect [0-9]+\.[0-9]+\.[0-9]+' "$SKILL" | head -1 | awk '{print $NF}')
+          [ -n "$PIN" ] || { echo "::error::could not read a Walk pin out of $SKILL"; exit 1; }
+          echo "coach skill pins Walk $PIN"
+          if ! .build/release/walk contract --expect "$PIN"; then
+            echo "::error::the installed coach skill pins Walk $PIN and this tree is $(.build/release/walk --version) — one of them must move"
+            exit 1
+          fi
+          echo "the consumer and the engine agree on $PIN"
 
       # Capabilities and notImplemented must stay disjoint, checked through the
       # shipped binary rather than only in a unit test.
