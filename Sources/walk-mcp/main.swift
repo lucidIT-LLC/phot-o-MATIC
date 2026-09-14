@@ -121,6 +121,17 @@ wire.verbose("walk-mcp \(Walk.version) up; protocols \(Protocols.all.joined(sepa
 // delivered — during one would have no way to tell a long scan from a hung
 // process. Writes are serialized by the `Wire` actor, so concurrency here cannot
 // interleave two messages on stdout.
+//
+// TASK #764, AND THIS TASK GROUP WAS THE PRODUCTION EXPOSURE. These tasks run on
+// the cooperative pool, and until 2026-09-13 each scan blocked a cooperative
+// thread inside `AVAssetReaderOutput.Provider.next()`. Roughly `hw.ncpu`
+// concurrent scans would have parked the pool — taking with it the `ping` this
+// task group exists to keep answerable, which is the benefit the defect removed.
+// FIXED IN WALKKIT, NOT HERE: `VideoReader.Pass.next()` now runs under a
+// `ReadExecutor` task-executor preference (SE-0417), so the block lands on a
+// Dispatch thread instead. Nothing on this side needed to change, and nothing on
+// this side should be relied on to keep it true — the guard is
+// `concurrentReadPassesDoNotParkTheCooperativePool` in the suite.
 await withTaskGroup(of: Void.self) { group in
     for await line in Stdin.lines() {
         group.addTask { await server.handle(line) }

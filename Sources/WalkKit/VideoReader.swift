@@ -370,7 +370,22 @@ public final class VideoReader {
             StallWatchdog.armIfRequested()
         }
 
+        /// One frame, or nil at end of stream.
+        ///
+        /// THE READ HAPPENS ON `ReadExecutor`, NOT ON THE COOPERATIVE POOL, and
+        /// that is the durable fix for task #764 rather than `--no-parallel`.
+        /// `provider.next()` blocks underneath its `await`; on a cooperative
+        /// thread that violates the pool's forward-progress contract, and twelve
+        /// concurrent passes on a twelve-core machine parked the whole pool.
+        /// SE-0417's executor preference is in force for the nonisolated async
+        /// calls made inside the scope, so the block lands on a Dispatch thread
+        /// that is allowed to block. See ReadExecutor.swift for the vendor
+        /// sources.
         public func next() async throws -> Frame? {
+            try await ReadExecutor.run { try await self.nextOnReadExecutor() }
+        }
+
+        private func nextOnReadExecutor() async throws -> Frame? {
             if !started {
                 try reader.start(); started = true
                 if !registered { registered = true; StallWatchdog.passBegan() }

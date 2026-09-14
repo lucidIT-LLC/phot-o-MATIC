@@ -47,9 +47,19 @@ release:
 #   swift test --no-parallel   -> 138 tests pass in 251 s
 #   one video test alone       -> passes in 2.2 s
 #
-# WALK_TEST_WATCHDOG_SECONDS is the backstop, not the fix. If the deadlock ever
-# returns -- someone drops --no-parallel, CI runs the plain command, or a new
-# test opens enough passes to starve the pool anyway -- it aborts the process
+# THE CAUSE IS NOW REMOVED AND --no-parallel IS GONE WITH IT (task #764,
+# 2026-09-13). VideoReader.Pass.next() runs under a ReadExecutor task-executor
+# preference (SE-0417), so the blocking decode lands on a Dispatch thread that
+# is allowed to block instead of on a cooperative one. MEASURED after the change:
+#   swift test (PARALLEL)      -> 142 tests pass in 215 s
+# and the new starvation test, run against a build with the preference removed,
+# parked twelve passes and was aborted by the watchdog at 45 s. --no-parallel
+# was only ever a fix for the test process; walk-mcp had the same exposure.
+#
+# WALK_TEST_WATCHDOG_SECONDS IS STILL HERE, AND IT STAYS. It is the detector for
+# the day the preference is dropped, a new read path is added that does not go
+# through Pass.next(), or a future SDK blocks somewhere else. If the deadlock
+# returns -- it aborts the process
 # with a diagnostic and a nonzero status instead of hanging. THAT DISTINCTION
 # IS THE WHOLE POINT: a hang writes zero bytes and reads exactly like a job
 # that never started, which is how this went unexplained for a day.
@@ -58,7 +68,7 @@ release:
 # test duration. The slowest legitimate test here runs 213 s and beats
 # continuously throughout.
 test:
-	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH) --no-parallel
+	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH)
 
 contract: release
 	$(SCRATCH)/release/walk contract
