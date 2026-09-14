@@ -298,29 +298,25 @@ jobs:
       - name: Brand gate can fail
         run: python3 Tools/brand-gate/run_eval.py
 
-      # THEN the gate itself, blocking. A criteria set carrying a #254 violation
-      # cannot reach the public marketplace through this workflow.
+      # THEN the gate itself, BLOCKING. A criteria set carrying a #254
+      # violation cannot reach the public marketplace through this workflow.
       #
-      # THIS IS EXPECTED TO BE RED TODAY and that is the control working, not a
-      # broken build: nine findings in the `origin` fields await an operator
-      # ruling reconciling decision #505 with decision #536. See
-      # Tools/brand-gate/waivers.txt for why they are not waived and
-      # Tools/brand-gate/PROPOSED-origin-minimal-edit.md for the ready change.
-      #
-      # It does NOT block the Phase 1 plugin, which ships the engine and no
-      # criteria at all — hence continue-on-error until that ruling lands. THE
-      # DAY THE CRITERIA SHIP, THIS LINE COMES OUT; the test below is what makes
-      # forgetting it impossible.
+      # THIS WAS `continue-on-error` FOR ONE PASS AND IS NOT ANY MORE. It was
+      # soft while nine findings in the `origin` fields awaited an operator
+      # ruling reconciling #505 with #536. He ruled on 2026-09-13 — persona name
+      # and pack version out, every decision number kept — the edit was applied
+      # under a guard, and the gate went to zero unwaived findings. A softened
+      # gate outliving the reason it was softened is the same defect class as
+      # everything else this repository is built around, so it came off in the
+      # same commit that made it unnecessary.
       - name: "#254 brand gate on the shipped criteria set"
-        continue-on-error: true
         run: python3 Tools/brand-gate/brand_gate_254.py criteria/walk-criteria.json --waivers Tools/brand-gate/waivers.txt
 
-      # THE TRIPWIRE ON THE LINE ABOVE. continue-on-error is exactly the kind of
-      # temporary softening that becomes permanent because nothing notices it.
-      # Criteria do not ship while Coaching.shippedCriteriaJSON is nil; the
-      # moment one does, the gate must be hard. This step fails if that day
-      # arrives and continue-on-error is still there.
-      - name: A shipped criteria set makes the brand gate blocking
+      # THE TRIPWIRE, AND IT NOW GUARDS AGAINST THE SOFTENING COMING BACK.
+      # continue-on-error is exactly the kind of temporary softening that becomes
+      # permanent because nothing notices it. It is gone; this fails if anyone
+      # reintroduces it anywhere in this workflow while criteria ship.
+      - name: The brand gate stays blocking
         run: |
           SHIPS=$(grep -c 'shippedCriteriaJSON: String? = nil' Sources/WalkKit/Coaching.swift || true)
           SOFT=$(grep -c 'continue-on-error: true' .github/workflows/ci.yml || true)

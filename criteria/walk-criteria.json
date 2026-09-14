@@ -36,7 +36,7 @@
         }
       ],
       "reason": "A thin, distant, well-formed bolt against a sky it barely lifted. The low rise is the reason this is good, not a caveat on it: the scene did not blow out, the foreground kept its tone, and the bolt reads as a drawn line rather than a white flare. Shape without brightness is the most saleable storm frame there is and the hardest to get.",
-      "origin": "decision #504 (\"it has the SHAPE of lightning without the BRIGHTNESS of it\"); the upper bound on rise is Pixel's own judgment, skill 2.5.0 — no decision record sets it",
+      "origin": "decision #504 (\"it has the SHAPE of lightning without the BRIGHTNESS of it\"); the upper bound on rise is the coach's own judgment — no decision record sets it",
       "nextFlight": "Distance bought you this. Next flight, hold that stand-off rather than closing in — a nearer strike is brighter, not better, and it takes the sky with it. If the horizon is soft, that is the frame to fix, not the exposure."
     },
     {
@@ -55,7 +55,7 @@
         }
       ],
       "reason": "This is not a strike and it does not need to be. The classifier is reading storm structure — the shelf, the anvil, the sculpted underside — and that sells on its own, steadily, to people who will never buy a bolt. The modest rise says the light is still describing the cloud rather than flattening it.",
-      "origin": "decision #495 established the built-in Vision taxonomy Walk queries (lightning, thunderstorm, storm — Classifier.stormIdentifiers); the thresholds and the craft call are Pixel's, skill 2.5.0",
+      "origin": "decision #495 established the built-in Vision taxonomy Walk queries (lightning, thunderstorm, storm — Classifier.stormIdentifiers); the thresholds and the craft call are the coach's",
       "nextFlight": "Structure wants a wider frame and a lower horizon than a strike does. Next flight, give the cloud two thirds of the frame and put something with known scale on the ground line — without scale a shelf cloud is an abstraction, and abstractions do not sell as weather."
     },
     {
@@ -79,7 +79,7 @@
         }
       ],
       "reason": "A real strike, and the channel itself is sitting on or against the 10-bit ceiling. Clipped highlight has no detail to recover and no colour left in it, so the bolt prints as a paper-white cut-out while everything the flash lit came up with it. The strike is genuine; the rendering of it is not finished.",
-      "origin": "Walk 0.5.0 exposes yMax as a 10-bit code value with a 1023 ceiling (ClipScan.Candidate); the guard sits at 1020 rather than 1023 because Walk's default triage path sub-samples the Y plane at stride 4 and a sampled maximum can miss the true peak — the general rule below catches that case. Craft call: Pixel 2.5.0 §9.9, §9.13.",
+      "origin": "Walk 0.5.0 exposes yMax as a 10-bit code value with a 1023 ceiling (ClipScan.Candidate); the guard sits at 1020 rather than 1023 because Walk's default triage path sub-samples the Y plane at stride 4 and a sampled maximum can miss the true peak — the general rule below catches that case. Craft call: the coach's judgment (sections 9.9 and 9.13. of his own craft notes)",
       "change": "Recover the highlights with a MASKED move on the bolt channel alone — paint the mask to the bolt and its immediate halo, then bring that back. Do not pull global exposure: a rise of this size means the foreground came up with the flash, and a global pull takes the foreground back down with the bolt.",
       "forwardQuestion": "Where did you want to go with this one — is the bolt the subject, or is it the light on the landscape?",
       "nextFlight": "Clipping is a capture problem, not a grade problem. Next flight, set exposure for the strike and not for the scene — meter the dark sky, then close down another stop and a half. A frame that is too dark between strikes is fixable; a clipped channel is gone."
@@ -116,7 +116,7 @@
         }
       ],
       "reason": "Something bolt-shaped is there and the classifier will not commit to it. In storm work that reads one of three ways, and all three are composition rather than exposure: the bolt is partly behind cloud, it runs out of the frame edge, or it is competing with a brighter thing for attention. The subject is present and the frame is not yet built around it.",
-      "origin": "Pixel 2.5.0, the coach's own judgment — no decision record sets a mid-confidence threshold. The measured anchors either side are decision #495 (frame 2347 at 0.3435 is a confirmed strike; frame 2348 at 0.0129 is not, a 27x separation) and decision #504.",
+      "origin": "the coach's own judgment — no decision record sets a mid-confidence threshold. The measured anchors either side are decision #495 (frame 2347 at 0.3435 is a confirmed strike; frame 2348 at 0.0129 is not, a 27x separation) and decision #504.",
       "change": "Crop to commit: put the channel on a third with its full length inside the frame, and lose the dead sky on the opposite side. A bolt the classifier half-recognises is almost always a bolt the composition half-committed to.",
       "forwardQuestion": "Where did you want to go? Tell me whether this was a wide storm frame or a bolt portrait, because the crop is a different crop.",
       "nextFlight": "Frame wider than the bolt you expect and crop later — a strike clipped by the frame edge cannot be recovered, and at 4K you have the resolution to give yourself the margin. Next flight, aim at where the last three strikes landed, not at where the last one did."
@@ -132,7 +132,7 @@
         }
       ],
       "reason": "There is storm structure in this frame but it is not being described by the light. Flat, even illumination on a cloud takes away the modelling that makes weather look like weather — the shelf reads as grey mass rather than as something with a leading edge and an underside.",
-      "origin": "decision #495 (the thunderstorm identifier Walk queries); decision #496 places the finishing move in Pixel's app-side lane rather than in the engine. Threshold and craft call: Pixel 2.5.0.",
+      "origin": "decision #495 (the thunderstorm identifier Walk queries); decision #496 places the finishing move in the coach's app-side lane rather than in the engine. Threshold and craft call: the coach's judgment.",
       "change": "Bring back the modelling with a local contrast move on the cloud base only — masked, with the sky above it left alone, so the underside separates from the mass. Not clarity across the whole frame; that hardens the horizon and gives away the edit.",
       "forwardQuestion": "Where did you want to go with this — a weather record, or a landscape that happens to have a storm in it?",
       "nextFlight": "Structure needs raking light. Next flight, shoot the storm's lit flank rather than its shadowed one, and take it earlier or later in the approach — the twenty minutes either side of the shelf passing overhead are where the modelling is."
@@ -177,7 +177,7 @@
         }
       ],
       "reason": "The detector found a luminance event and the classifier finds no storm subject in it at any useful confidence. Plainly: it cleared a statistical threshold, which is a reason to look, not a reason to keep. Spending an edit here is spending it on the threshold rather than on a photograph.",
-      "origin": "decision #513 requires the band to say why plainly so the tell is learned; decision #499 requires a judgment to name its origin — this threshold is Pixel's, skill 2.5.0, and no decision record sets it",
+      "origin": "decision #513 requires the band to say why plainly so the tell is learned; decision #499 requires a judgment to name its origin — this threshold is the coach's, and no decision record sets it",
       "nextFlight": "A candidate is a question, not an answer — Walk's own threshold is the clip's statistics or a 1% floor, whichever is higher, and both are reasons to look rather than verdicts. Next flight, judge your take by how many frames carried a subject, not by how many the detector flagged. One tell is still worth learning by hand, and it sits here rather than in a rule of its own because Walk cannot check it for you: a bright frame one or two frames after a frame the classifier DID call lightning is the flash decaying, with the channel already gone from it. The coach judges each candidate in isolation and cannot see its neighbour, so it will never tell you that a real strike preceded this one — look at the frame before this one yourself before you spend any time on it."
     }
   ]

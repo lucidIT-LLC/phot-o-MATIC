@@ -115,13 +115,26 @@ for origin, want_finding, label in cases:
           + ("" if ok else "  — got %s" % (sorted(got) or "nothing")))
     fail += 0 if ok else 1
 
-print("\n=== PART 4: what task #770 changed, and what ruling #536 forbade changing ===")
+print("\n=== PART 4: what tasks #770/#775 changed, and what the operator ruled on `origin` ===")
 live = os.path.join(REPO, "criteria", "walk-criteria.json")
-# THE ORIGIN FIELDS ARE ASSERTED, NOT TRUSTED. #536 ruling 1 keeps them as
-# written, and "I did not edit them" is exactly the kind of claim this whole
-# repository refuses to take on a promise. The nine origins are pinned by hash,
-# so any future edit to one fails here and has to be argued for.
-ORIGINS_SHA256 = "2b87e500a7e51d3aecf9886b06f1135529e157b13fecf8602af1299cb3a909a9"
+# THE ORIGIN FIELDS ARE ASSERTED, NOT TRUSTED. Pinned by hash, so any future
+# edit fails here and has to be argued for.
+#
+# REPINNED 2026-09-13 after the operator ruled on the #505 / #536 reconciliation
+# Carver routed rather than decide alone. THE RULING: the persona name and the
+# pack version come out; every decision number stays exactly where it was.
+# #536 overruled Brandy on ONE thing -- that internal decision IDs are
+# unacceptable public provenance -- and its text argues about decision numbers
+# and nothing else. It did not address persona names and did not license them.
+# Brandy's #254 Class 2 block on persona names in `origin` was never overruled,
+# and #505 retires the name from customer-facing surfaces, which is the whole
+# basis of #775. Smith named the remedy: "rename Pixel->Andy, not delete" --
+# deleting the name collapses five rules, which is why rename is right.
+#
+# THE EDIT WAS APPLIED UNDER A GUARD, not by inspection: all 13 internal
+# references across the nine origins were extracted before and after, in order,
+# and nothing was written until they compared identical. 6 of 9 origins changed.
+ORIGINS_SHA256 = "3d288d7269e5ae2f9560dc843505e095b3d291cfd70a342a0e6ee1a607b3e842"
 if os.path.exists(live):
     import hashlib
     d = json.load(open(live, encoding="utf-8"))
@@ -141,13 +154,28 @@ if os.path.exists(live):
     got = hashlib.sha256(joined.encode("utf-8")).hexdigest()
     ok = got == ORIGINS_SHA256
     print(("  OK   " if ok else "  WRONG")
-          + "  the nine `origin` fields are unchanged (#536 ruling 1 cancelled the rewrite)"
+          + "  the nine `origin` fields match the operator-ruled text (persona name and pack\n"
+            "         version out, every decision number kept)"
           + ("" if ok else "\n         pinned %s\n         actual %s\n"
-                           "         If this edit is intended, it needs a ruling that reconciles\n"
-                           "         #505 with #536 — see PROPOSED-origin-minimal-edit.md — and then\n"
-                           "         this pin is updated deliberately, in the same commit."
+                           "         An origin changed. The operator ruled on this text directly:\n"
+                           "         decision numbers STAY, persona names and pack versions DO NOT.\n"
+                           "         Re-read that ruling before repinning, and repin in the same commit."
                            % (ORIGINS_SHA256, got)))
     fail += 0 if ok else 1
+
+    print("")
+    print("  N8 three-anchor confirmation, rule by rule (the control that stops the")
+    print("  three no-measurement rules inventing provenance):")
+    for r in d.get("rules", []):
+        o = (r.get("origin") or "").strip()
+        anchors = []
+        if g.RE_ORIGIN_RULING.search(o):    anchors.append("ruling")
+        if g.RE_ORIGIN_MEASURED.search(o):  anchors.append("measurement")
+        if g.RE_ORIGIN_DISCLOSED.search(o): anchors.append("judgment-disclosure")
+        ok = bool(anchors)
+        print(("    OK   " if ok else "    WRONG") + " %-42s %s"
+              % (r.get("id"), ", ".join(anchors) or "NO ANCHOR"))
+        fail += 0 if ok else 1
 
 print("\n=== PART 5: the LIVE shipped artifact, through the waiver file, exactly as CI runs it ===")
 waivers = os.path.join(HERE, "waivers.txt")

@@ -33,34 +33,30 @@ N6_OUTCOME_PROMISE | real-strike-that-lifted-the-whole-scene.nextFlight | you wi
 N6_OUTCOME_PROMISE | bright-but-not-lightning.nextFlight | lose nothing | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
 
 # ---------------------------------------------------------------------------
-# NOT WAIVED, DELIBERATELY: nine findings in `origin` — 6 x N1 "Pixel",
-# 3 x N3 "skill 2.5.0".
+# RESOLVED 2026-09-13, AND NOTHING IS WAIVED HERE — the nine `origin` findings
+# (6 x N1 "Pixel", 3 x N3 "skill 2.5.0") were FIXED, not excused.
 #
-# These are left RED because Carver could not resolve them without adopting a
-# permissive reading of two rulings that point opposite ways, and the
-# permissive reading is the one that would have let this build go green:
+# They were left RED in the first pass because decision #536 and decision #505
+# pointed opposite ways and the reading that resolved them also happened to turn
+# the build green. That was routed to the operator rather than decided here.
 #
-#   Decision #536 ruling 1 keeps the `origin` fields as written, so that the
-#   audit trail survives. The instruction carrying it to Carver was "do not
-#   rewrite the nine origin fields; if you find yourself editing an origin
-#   field, stop."
+# HIS RULING: the persona name and the pack version come out of `origin`; every
+# decision number stays, untouched. The reasoning, recorded so a later session
+# does not reopen it:
+#   - #536 overruled Brandy on ONE thing: that internal decision IDs are
+#     unacceptable public provenance. Its text argues about decision numbers and
+#     nothing else. It did not address persona names and did not license them.
+#   - Brandy's #254 Class 2 block on persona names in `origin` was never
+#     overruled and still stands.
+#   - Smith named the remedy in his review: "rename Pixel->Andy, not delete."
+#     Stripping the name collapses five rules, which is why deletion was wrong.
+#   - #505 retires the name from customer-facing surfaces. That is the basis of
+#     #775, already executed on the filename. Six "Pixel" and three "skill
+#     2.5.0" inside the same public file are the same breach on a different line.
 #
-#   Decision #505 confines the coach to Walk and retires the name "Pixel" from
-#   customer-facing surfaces. Task #775 exists because that name in a SHIPPED
-#   FILENAME is public copy. The same name in shipped FILE CONTENT, bound for
-#   the same public marketplace repository, is the same exposure.
+# Applied under a guard: all 13 internal references across the nine origins were
+# extracted before and after and compared identical before anything was written.
+# 6 of 9 origins changed. Gate: 9 unwaived -> 0.
 #
-# #536's rationale is explicitly about DECISION NUMBERS — "the audit trail IS
-# the decision number" — and says nothing about persona names or pack versions.
-# Reading it as also protecting "Pixel" and "skill 2.5.0" is available but it is
-# not what it argues, and guessing in the direction that unblocks the build is
-# the failure this gate exists to catch.
-#
-# THE FIX IS ONE LINE PER RULE AND IS WRITTEN OUT, READY, in
-# Tools/brand-gate/PROPOSED-origin-minimal-edit.md — it changes only the persona
-# name and the pack version and leaves every decision number and every other
-# word untouched. It needs an operator ruling, not more work.
-#
-# This gate blocks the criteria artifact. It does NOT block the Phase 1 plugin,
-# which ships the engine and no criteria at all.
+# The three N6 lines above remain the ONLY waived findings.
 # ---------------------------------------------------------------------------

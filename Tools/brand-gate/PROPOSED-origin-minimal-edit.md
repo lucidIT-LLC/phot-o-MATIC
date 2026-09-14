@@ -1,7 +1,22 @@
-# PROPOSED minimal edit to the nine `origin` fields — NEEDS AN OPERATOR RULING
+# APPLIED 2026-09-13 — the minimal edit to the nine `origin` fields
 
-Carver did NOT apply this. It is written out so a ruling costs one word and not
-another session's work.
+> **STATUS: RULED AND APPLIED.** The operator ruled on the #505 / #536
+> reconciliation this document was written to route. The persona name and the
+> pack version come out; every decision number stays, untouched. Applied under a
+> guard that compared all 13 internal references before and after — 6 of 9
+> origins changed, 0 references moved. The #254 gate went from 9 unwaived
+> findings to 0. This file is kept as the record of what was proposed, what was
+> ruled, and why.
+>
+> His reasoning, recorded so it is not reopened: #536 overruled Brandy on ONE
+> thing — that internal decision IDs are unacceptable public provenance — and
+> its text argues about decision numbers and nothing else. Brandy's #254 Class 2
+> block on persona names in `origin` was never overruled. Smith named the
+> remedy: *"rename Pixel→Andy, not delete"*, because stripping the name
+> collapses five rules.
+
+Originally written out unapplied, so that a ruling would cost one word rather
+than another session's work. It cost one word.
 
 ## The contradiction, stated plainly
 

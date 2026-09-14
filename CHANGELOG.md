@@ -58,7 +58,34 @@ fixture was not green (it trips N6 three times, so the suite had reported RED on
 a clean tree since it was written), and the N2 fixture planted its reference
 only in `origin`, so the re-aim would have left that detector silently untested.
 
-Findings against the shipped criteria set: **53 before, 12 after, 9 unwaived.**
+Findings against the shipped criteria set: **53 before, 12 after the re-aim, 0
+unwaived after the operator's ruling.** Only the three N6 lines remain waived,
+under Brandy's standing Class 4 verdict, and they stay visible in every run.
+
+**THE #505 / #536 RECONCILIATION WAS ROUTED, NOT GUESSED, AND THEN RULED.** Nine
+findings — six `Pixel`, three `skill 2.5.0`, all in `origin` — sat RED for one
+pass because #536 and #505 pointed opposite ways and the reading that resolved
+them was also the one that turned the build green. Operator ruling, 2026-09-13:
+the persona name and the pack version come out; every decision number stays.
+#536 overruled Brandy on ONE thing — that internal decision IDs are unacceptable
+public provenance — and its text argues about decision numbers and nothing else;
+Brandy's #254 Class 2 block on persona names was never overruled; Smith had
+already named the remedy as *"rename Pixel→Andy, not delete"*, because stripping
+the name collapses five rules.
+
+APPLIED UNDER A GUARD rather than by inspection: all 13 internal references
+across the nine origins were extracted before and after, in order, and nothing
+was written until they compared identical. 6 of 9 origins changed, 0 references
+moved. `Pixel` and `skill 2.5.0` now appear zero times in the file.
+
+The N8 three-anchor logic is confirmed rule by rule after the edit, and it earns
+its keep: `bolt-core-on-the-ceiling` is anchored ONLY by its judgment
+disclosure, which is precisely the rule a single-anchor gate would have forced
+to invent a measurement.
+
+The CI gate's `continue-on-error` came off in the same commit that made it
+unnecessary. A softening that outlives its reason is the defect this repository
+is built around.
 
 **`criteria/pixel-criteria.json` IS NOW `criteria/walk-criteria.json`** (task
 #775). A retired persona name in a filename bound for a public marketplace repo
