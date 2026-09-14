@@ -27,7 +27,7 @@ public enum Walk {
     // here rather than left as an unexplained gap, because an unexplained gap in
     // a version sequence is exactly the sort of thing a later session
     // "corrects."
-    public static let version = "0.5.7"
+    public static let version = "0.7.0"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is

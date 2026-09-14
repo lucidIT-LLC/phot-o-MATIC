@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 2026-09-14 — the product is **phot-o-MATIC**, and the pack moves out of the root
+## 0.7.0 — 2026-09-14 — the product is **phot-o-MATIC**, and the pack moves out of the root
 
 **WALK WAS THE DEVELOPMENT NAME.** The product, the public mark and the
 repository are `phot-o-MATIC`, lowercase p, with the house `o-MATIC` suffix
@@ -48,6 +48,21 @@ check only punishes under-renaming, and the defect this estate has actually paid
 for is the other direction, a substitution pass eating an API identifier that
 looked like a name. Both directions are proven on planted fixtures under
 `--selftest`.
+
+**THE LICENCE FILE CHANGED, AND NOT TO A DIFFERENT LICENCE.** `LICENSE` used to
+contain the MIT Licence while every shipped manifest declared `BUSL-1.1`. Both
+were wrong and only one was dangerous: published, MIT would have been an
+irrevocable grant to anyone to copy, modify and resell this. The MIT text is
+gone and **no licence is granted** — the file now says so in terms. The
+manifests still declare `BUSL-1.1`, which is *not* a settled choice and is
+recorded as such; the contradiction is left visible rather than resolved by
+picking one, because choosing a licence is not a build decision. **You have no
+right to use, copy, modify or distribute this.**
+
+**WHY THE VERSION IS 0.7.0 AND NOT A PATCH.** The plugin was renamed, its layout
+moved, and its licence file changed. None of that is a bug fix, and a host that
+saw `0.5.7` before today would have no way to tell that anything happened. 0.5.6
+and 0.5.7 were never tagged; this release is.
 
 Not yet published. The public repository does not exist and creating it is a
 separate, gated step.

@@ -1,6 +1,6 @@
 {
   "name": "phot-o-matic",
-  "version": "0.5.7",
+  "version": "0.7.0",
   "license": "BUSL-1.1",
   "description": "phot-o-MATIC — on-device footage triage for photographers. Scans video on Apple silicon with a whole-frame luminance-rise detector and an on-device Vision classifier, and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
   "author": {

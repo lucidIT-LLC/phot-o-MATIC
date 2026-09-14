@@ -137,9 +137,22 @@ import Testing
 }
 
 @Test func skippingASixInTheVersionDoesNotBreakOrdering() {
-    // 0.5.7 follows 0.5.5 on purpose. The comparison is numeric, so the gap is
-    // harmless — asserted rather than assumed, because a consumer pinned to the
-    // skipped version must still be told it is older.
+    // THE ANCHORS MOVED WITH THE BUILD, AND THAT IS THE POINT OF THE TEST.
+    // Written at 0.5.7, this asserted that 0.5.6 being skipped did not break
+    // ordering, using 0.5.8 as the "newer than us" fixture. At 0.7.0 the whole
+    // 0.6 line is the skipped range — 0.6.0 was never cut, because this factory
+    // does not use six as a version number — so 0.5.8 is now OLDER than the
+    // build and the old fixture asserted a direction that had reversed.
+    //
+    // Re-aimed rather than deleted: the claim is unchanged (a numeric gap in the
+    // version line must not break ordering), the fixtures now straddle the
+    // CURRENT build, and the skipped range is asserted directly instead of by a
+    // single off-by-one neighbour.
     #expect(Walk.check(expecting: "0.5.5").detail.contains("NEWER"))
-    #expect(Walk.check(expecting: "0.5.8").detail.contains("OLDER"))
+    #expect(Walk.check(expecting: "0.5.8").detail.contains("NEWER"))
+    // the whole skipped 0.6 line still orders below 0.7.0
+    #expect(Walk.check(expecting: "0.6.0").detail.contains("NEWER"))
+    #expect(Walk.check(expecting: "0.6.9").detail.contains("NEWER"))
+    // and a consumer pinned above us is still told the build is older
+    #expect(Walk.check(expecting: "0.7.1").detail.contains("OLDER"))
 }
