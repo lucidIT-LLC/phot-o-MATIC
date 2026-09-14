@@ -1,21 +1,38 @@
-MIT License
+Copyright (c) 2026 lucidIT, LLC. All rights reserved.
 
-Copyright (c) 2026 lucidIT LLC
+NO LICENCE IS GRANTED BY THIS FILE.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is source-visible, not open source. No right to use, copy,
+modify, merge, publish, distribute, sublicense or sell any part of it is
+granted here, expressly or by implication. Access to this repository does not
+convey permission to do any of those things.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+WHY THIS FILE SAYS NOTHING MORE THAN THAT.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The final licence for this product has not been chosen and is not being chosen
+in this file. Factory task #573 records the operator's intent — the work stays
+source-visible, general use is permitted, and nobody but lucidIT, LLC may
+monetise or redistribute it — and records the two findings that bear on it:
+PolyForm Strict / Internal Use is the closest fit to that intent, and
+BUSL-1.1 was REJECTED as too generous because it permits non-competing free
+use. #573 also holds, in terms, that custom legal text must not be drafted
+without counsel and that a vetted template must be adapted instead.
+
+This notice is therefore deliberately NOT a licence. It is the default
+position that applies when no licence has been granted, stated explicitly so
+that nothing is granted by silence or by a placeholder.
+
+WHAT IT REPLACED, AND WHY THAT MATTERED.
+
+Until 2026-09-14 this file contained the MIT Licence while every shipped
+manifest declared BUSL-1.1. The two contradicted each other, and the MIT text
+was the dangerous half: MIT grants any recipient the right to sell, sublicense
+and redistribute without restriction, which is the precise opposite of the
+recorded intent, and a grant made in a public repository is irrevocable for
+every copy already taken. The manifests were no better — they named a licence
+this factory had already rejected.
+
+BEFORE THIS PRODUCT IS PUBLISHED, counsel settles the licence and a vetted
+template replaces this file. Publishing it with this notice in place grants
+nothing, which is the correct state for an undecided question; publishing it
+with the wrong licence cannot be undone.
