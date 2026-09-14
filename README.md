@@ -1,4 +1,4 @@
-# Walk
+# phot-o-MATIC
 
 **An on-device photographic and video engine for macOS, reachable from a
 conversation.** Measurement first, grading second, no third-party application
@@ -23,19 +23,19 @@ converge.** Most automation paths can adjust but cannot measure:
 
 | Path | Read-back |
 |---|---|
-| **Core Image (Walk)** | full buffer, 24 MP in ~8 ms |
+| **Core Image (phot-o-MATIC)** | full buffer, 24 MP in ~8 ms |
 | Affinity `readPixel` | ~4.7 µs per pixel |
 | Pixelmator `pick color` | one pixel per Apple Event |
 | Screenshot / computer use | no real pixel data |
 
-Walk owns the read-back, so the loop closes.
+phot-o-MATIC owns the read-back, so the loop closes.
 
 Video is the same argument at a different scale. Finding one bright frame in a
 flight of storm footage means measuring every frame:
 
 | Path | 2771 frames of 4K60 HLG |
 |---|---|
-| **AVFoundation + Core Image (Walk)** | 6.4 s at full 3840×2160 |
+| **AVFoundation + Core Image (phot-o-MATIC)** | 6.4 s at full 3840×2160 |
 | `ffmpeg signalstats`, downscaled to 640 wide | 71.3 s — and it missed two strikes |
 
 The downscale is what missed them: a fixed threshold after the resize put frames
@@ -78,7 +78,7 @@ the detector derives its threshold from the clip instead of carrying a constant
   applied. For a DJI clip with a sibling `.SRT`, the shutter and ISO
   *distribution over the whole file* — never frame 1, where the aircraft is
   still settling — and a 180-degree shutter comparison against 1/(2 × fps).
-- **Walk emits the data, not the page.** There is no HTML, no CSS and no styling
+- **phot-o-MATIC emits the data, not the page.** There is no HTML, no CSS and no styling
   in the engine; `manifest.json` is the artifact and the viewer is separate.
 - **It displays and measures. It does not judge.** Nothing is banded, ranked,
   scored or sorted by interest, and the shutter comparison is a measurement
@@ -101,7 +101,7 @@ the detector derives its threshold from the clip instead of carrying a constant
 - **Dual-era protocol.** The current MCP revision (`2026-07-28`) removed the
   `initialize` handshake in favour of `server/discover` and per-request
   metadata. Measured 2026-09-12: Claude Code 2.1.258 still opens with
-  `initialize` at `2025-11-25`. Walk answers both, and CI replays the captured
+  `initialize` at `2025-11-25`. phot-o-MATIC answers both, and CI replays the captured
   Claude Code exchange so that stays true.
 
 **What it will never do** — see design rule 5.
@@ -203,7 +203,7 @@ result        13 candidates over 2771 frames at a 1.000% threshold (floor bound)
 COACHING VERDICT  none rendered
   no criteria file. Decision #499 rules that Andy's hard-earned logic drives Walk's
   verdicts, and #513 that the output is a coaching verdict rather than a readout; the
-  criteria file is the mechanism a verdict comes from and Walk does not ship one. The
+  criteria file is the mechanism a verdict comes from and phot-o-MATIC does not ship one. The
   measurements are complete and unjudged. Install a criteria set at
   /Users/lucid/Library/Application Support/Walk/criteria.json, or name one with
   WALK_CRITERIA, and every scan renders bands from it.
@@ -234,15 +234,35 @@ grade+measure 446.5 ms
 
 ## From a conversation
 
-### As a plugin (decision #534)
+### As a plugin
 
-Walk ships as an o-MATIC plugin, and **this repository is the plugin**: the
-root holds `.mcp.json`, `.claude-plugin/`, `.codex-plugin/`, `skills/` and a
-prebuilt `bin/walk-mcp`, so a host installs it without a toolchain.
+phot-o-MATIC ships as an o-MATIC plugin, and **this repository is the
+marketplace, not the plugin**. Claude Code refuses a repository that tries to be
+both at once — a plugin `source` of `"."` is invalid — so the marketplace
+manifest sits at the repository root and the pack sits one directory down, the
+same shape as the other o-MATIC doors:
 
 ```
-claude plugin install walk@o-matic-walk
+.claude-plugin/marketplace.json     the marketplace, at the root
+.agents/plugins/marketplace.json    the same, for Codex
+phot-o-matic/                       the pack: .mcp.json, .claude-plugin/,
+                                    .codex-plugin/, skills/ and a prebuilt
+                                    bin/walk-mcp — so a host installs it
+                                    without a toolchain
 ```
+
+```
+claude plugin install phot-o-matic@phot-o-matic
+```
+
+**The six MCP tool names are still `walk_*`, on purpose.**
+Walk was the development name. The tool names, the `WalkKit` module, the `walk` and
+`walk-mcp` binaries and the criteria file's engine-version field are the stable
+API and they did not move when the product was named; renaming them is a
+breaking schema change and would get its own deliberate pass. What did change is
+the *qualified* name a host composes from the plugin name — a saved permission
+rule written against the old `mcp__plugin_walk_walk__*` form will no longer
+match.
 
 The floor is declared honestly in both manifests and **enforced in the
 launcher**: macOS 26 or later on Apple silicon. There is no Intel build and no
@@ -261,7 +281,7 @@ the paths searched. Read that field; do not substitute a verdict for it.
 To rebuild the payload from source:
 
 ```
-make stage-plugin    # stages bin/walk-mcp and verifies what a host would get
+make stage-plugin    # stages phot-o-matic/bin/walk-mcp and verifies what a host gets
 make plugin-check    # the same verification on its own
 ```
 
@@ -279,7 +299,7 @@ claude mcp add --scope user --transport stdio walk ~/.local/bin/walk-mcp
 
 `make mcp-check` replays both protocol eras against the built binary and
 requires the refusals — an unsupported protocol version, an unknown tool, and a
-consumer written against an older Walk. Set `WALK_MCP_LOG=<file>` in the
+consumer written against an older phot-o-MATIC. Set `WALK_MCP_LOG=<file>` in the
 server's environment to capture every message in both directions; that is how
 the era question above was answered rather than assumed.
 
@@ -332,8 +352,8 @@ asserts each refusal. A band-2 verdict that lost either half would still render,
 still read like coaching, and have quietly become a sorting label.
 
 **The judgment is not in the code.** Decision #499: *"we need pixel experience
-driving it"* — a Walk that does not carry her experience is a light meter. So the
-bands are filled from a **criteria file**, and Walk ships none. `coach.verdict`
+driving it"* — a phot-o-MATIC that does not carry her experience is a light meter. So the
+bands are filled from a **criteria file**, and phot-o-MATIC ships none. `coach.verdict`
 is in `walk contract`'s not-implemented list with that reason, every scan returns
 `coaching.available: false` and says where it looked, and the app's proof sheet
 states that it displays and does not judge. Absence is reported as absence.
@@ -369,7 +389,7 @@ audited:
 - **A rule with no `origin`.** Field 4 is what lets a verdict cite where the
   advice came from, so the operator can check it rather than trust it. It is
   also the field that would have caught Pixel 2.2.0's reversed sign.
-- **Criteria written against another Walk.** The file declares the version it was
+- **Criteria written against another phot-o-MATIC.** The file declares the version it was
   written for; a mismatch renders **no** verdict and reports the mismatch, under
   the same discipline as `walk contract`.
 - **A candidate no rule covers.** It is returned as uncovered and left unjudged.
@@ -381,13 +401,13 @@ The measurements stay, underneath. #513 kept them deliberately: removing them
 would make the coach unfalsifiable. Each verdict lists the value it read and the
 threshold it was tested against.
 
-## The Xcode surface — development only, NOT how Walk ships
+## The Xcode surface — development only, NOT how phot-o-MATIC ships
 
 Open **`Walk.xcworkspace`** at the repository root. One window carries
 `App/Walk.xcodeproj` and the root Swift package, so `WalkKit`, `walk`,
 `walk-mcp`, the app and the tests are all visible and buildable together.
 
-**THIS IS A DEVELOPMENT SURFACE AND NOTHING ELSE. WALK SHIPS AS AN o-MATIC
+**THIS IS A DEVELOPMENT SURFACE AND NOTHING ELSE. phot-o-MATIC SHIPS AS AN o-MATIC
 PLUGIN.** Decision #534 rules that, and it SUPERSEDED decision #508's
 app-bundle mechanism in terms: an app cannot register its own MCP server, and
 that install story is WITHDRAWN. The presence of an Xcode project here is not
@@ -484,7 +504,7 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
 - **Passthrough writing is not shipped.** Open defect task #721: 22 frames lost
   with every success signal returning true.
 - **No audio.** Never read, retimed or written.
-- **The coaching verdict does not reach a photograph.** Walk measures stills and
+- **The coaching verdict does not reach a photograph.** phot-o-MATIC measures stills and
   shows them in a sheet; it cannot judge one. Of the seven selectors a criteria
   rule can read, exactly one — `vision.<identifier>` — transfers to a still with
   its meaning intact. `relativeRise`, `relativeRisePercent`, `sigma` and
@@ -497,9 +517,9 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
   one; `coach.stills` in `walk_contract` carries the full reason.
 - **A proof-sheet cell from a clip carries the filmic curve whether or not the
   clip is HLG.** `Frame.makeDisplayImage` has applied the Hable curve to every
-  picture Walk writes since 0.3.0, and the sheet uses that same path rather than
+  picture phot-o-MATIC writes since 0.3.0, and the sheet uses that same path rather than
   growing a second one. MEASURED 2026-09-12 on frame 450 of
-  `DJI_20260913024928_0001_D.MP4`: Walk's path renders R52.5 G57.5 B62.0 against
+  `DJI_20260913024928_0001_D.MP4`: phot-o-MATIC's path renders R52.5 G57.5 B62.0 against
   R60.8 G68.0 B76.8 for a plain managed HLG→sRGB conversion of the same frame —
   about 15% darker, which is the highlight rolloff doing what it is for. On an
   SDR source that curve is applied to footage that is display-referred already.
@@ -548,7 +568,7 @@ number. A retime ratio computed through a `Double` truncates 2000/1001 to
 1999/1001 and passes every check except reading the duration. Each of those is
 recorded where the workaround lives, not in a commit message nobody reads.
 
-**5. Walk renders a verdict, and it is never derived from the metrics.**
+**5. phot-o-MATIC renders a verdict, and it is never derived from the metrics.**
 Decision #513: the output is a coaching verdict in three bands, each carrying a
 reason and a lesson for next flight. Session #228 is why the verdict cannot come
 from the numbers — the operator's best-selling photograph fails nearly every

@@ -351,7 +351,7 @@ private func coachStateJSON(_ coach: Coaching.Coach) -> JSON {
     if let reason = coach.unavailableReason {
         o["reason"] = .string(reason)
         o["searched"] = .array((coach.resolution?.searched ?? []).map { .string($0) })
-        o["note"] = .string("coaching.available is false, so no band was assigned to anything. The candidates below are measured and unjudged. Do not present a verdict Walk did not render.")
+        o["note"] = .string("coaching.available is false, so no band was assigned to anything. The candidates below are measured and unjudged. Do not present a verdict phot-o-MATIC did not render.")
     } else if let c = coach.criteria {
         o["criteria"] = .object([
             "version": .string(c.header.version),
@@ -788,7 +788,7 @@ enum Tools {
                     }),
                     "judgment": .object([
                         "rendered": .bool(false),
-                        "note": .string("A proof sheet DISPLAYS and MEASURES. Nothing here is banded, ranked, scored or sorted by interest, and the shutter comparison is a measurement against the 180-degree convention rather than a ruling on the footage. Walk's coaching verdict comes from walk_scan against a criteria file (#499, #513) and is a different call."),
+                        "note": .string("A proof sheet DISPLAYS and MEASURES. Nothing here is banded, ranked, scored or sorted by interest, and the shutter comparison is a measurement against the 180-degree convention rather than a ruling on the footage. phot-o-MATIC's coaching verdict comes from walk_scan against a criteria file (#499, #513) and is a different call."),
                     ]),
                     "note": .string("Read manifest.json for the whole sheet: per item the dimensions, fps, duration, codec, transfer function, tone map applied and DJI telemetry distribution; per cell the frame index, timecode, seconds, sharp file path and an inline blurred placeholder. `status` is \"sampling\" while cells are still landing and \"complete\" when every cell that will exist is described."),
                 ]))

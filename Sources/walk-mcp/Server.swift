@@ -98,7 +98,7 @@ let serverInfo: JSON = .object([
 /// #499 and not a build step. Nothing in the engine changed here: this is served
 /// prose, and `.github/check-doctrine.py` is what now holds it true.
 let serverInstructions = """
-Walk is a COACHING tool for photographers, not a readout. Its output is a \
+phot-o-MATIC is a COACHING tool for photographers, not a readout. Its output is a \
 verdict in three bands, each carrying a reason and a lesson for next flight: \
 KEEPER (good, and why — the craft a buyer is paying for, not the \
 number); HAS POTENTIAL, WITH THIS (the one specific change, then the question \
@@ -107,7 +107,7 @@ WORTH THE TROUBLE (why, plainly, so the tell is learned). The goal is sellable, 
 professional output and better photographers.
 
 WHETHER A VERDICT RENDERS IS A PROPERTY OF THIS HOST, NOT OF THIS BUILD. NO \
-CRITERIA SHIP INSIDE WALK — the bands are rendered from a criteria file that \
+CRITERIA SHIP INSIDE phot-o-MATIC — the bands are rendered from a criteria file that \
 carries Andy's judgment, and none is bundled, which is why `coach.verdict` sits \
 in notImplemented. The band shapes, the versioned loader and the evidence trail \
 ARE built. So a scan returns `coaching.available: false` ONLY WHERE NO MATCHING \
@@ -117,7 +117,7 @@ DO NOT ANSWER THAT QUESTION FROM THIS STRING: call walk_contract and read \
 `coach.available`, `coach.criteria.version` and `coach.criteria.source`. A set \
 is installed at ~/Library/Application Support/Walk/criteria.json or named in \
 WALK_CRITERIA. Where it is unavailable the honest answer to "is this frame any \
-good" is that Walk measured it and cannot yet judge it — say that, and do not \
+good" is that phot-o-MATIC measured it and cannot yet judge it — say that, and do not \
 substitute a verdict of your own invention for the missing one.
 
 The measurements are the EVIDENCE UNDER a verdict, available and not leading. \
@@ -142,7 +142,7 @@ usually a lightning flash. On anything else a candidate is a brightness change \
 the light moved a lot, not that the clip is interesting. Read the `lightning` \
 confidence and look at the thumbnail before telling the operator he has fifty \
 moments. Luminance finds bright flashes; classification finds lightning; they \
-are different measurements and Walk reports both separately on purpose.
+are different measurements and phot-o-MATIC reports both separately on purpose.
 
 "Nothing found" is a real answer and is reported as one, with the threshold \
 that was applied and which half of it bound. So is "measured but not judged".

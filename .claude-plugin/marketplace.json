@@ -1,21 +1,21 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "o-matic-walk",
+  "name": "phot-o-matic",
   "owner": {
     "name": "lucidIT-LLC",
     "email": "lucideye@icloud.com"
   },
   "metadata": {
-    "description": "Walk — on-device footage triage for photographers. One product, one plugin: this repository is both the marketplace and the pack, because there is nothing else to ship beside it.",
-    "version": "2026-09-13"
+    "description": "phot-o-MATIC — on-device footage triage for photographers. The marketplace manifest lives at the repository root and the pack lives in ./phot-o-matic, the same shape as the other o-MATIC doors.",
+    "version": "2026-09-14"
   },
   "plugins": [
     {
-      "name": "walk",
-      "displayName": "Walk",
-      "source": "./",
+      "name": "phot-o-matic",
+      "displayName": "phot-o-MATIC",
+      "source": "./phot-o-matic",
       "version": "0.5.7",
-      "description": "Walk decodes video on Apple silicon and finds the frames worth a second look: a whole-frame luminance-rise detector paired with an on-device Vision classifier. Every candidate carries its frame index, timecode, the rise over a local median baseline, 10-bit Y-plane statistics, classifier confidences, and a written thumbnail. The classification runs on the machine, so looking at several thousand frames costs no tokens.",
+      "description": "phot-o-MATIC decodes video on Apple silicon and finds the frames worth a second look: a whole-frame luminance-rise detector paired with an on-device Vision classifier. Every candidate carries its frame index, timecode, the rise over a local median baseline, 10-bit Y-plane statistics, classifier confidences, and a written thumbnail. The classification runs on the machine, so looking at several thousand frames costs no tokens.",
       "author": {
         "name": "LucidIT, LLC",
         "url": "https://o-matic.ai"
@@ -35,8 +35,7 @@
         "compatibilityTier": "MCP-host-full-operation ONLY, AND macOS 26 or later on Apple silicon (arm64) ONLY — this plugin ships a native Mach-O binary, not a script",
         "shipsMcpServer": true,
         "requiresForFullOperation": "a host able to launch stdio MCP servers, running macOS 26+ on arm64. There is no Intel build and no non-Apple port: the engine links Vision, CoreML and AVFoundation directly, which is the whole reason the classification runs on-device and costs no tokens.",
-        "declaredUnder": "known_rules #284 (compatibility gate, halt)",
-        "note": "PHASE 1 SHIPS THE ENGINE AND NO JUDGMENT. Decision #534 rules that the coaching criteria set ships inside this plugin; it does not ship in this phase. Until it does, every scan returns coaching.available=false together with the reason and the paths searched — unless the host has a criteria set of its own installed, in which case that one is loaded and said so. Read the field rather than inferring a verdict. Hosts below the macOS/arch floor get a server advertising zero tools and stating the reason, rather than a silent failure that reads as 'not configured yet'."
+        "note": "THIS PHASE SHIPS THE ENGINE AND NO JUDGMENT. The coaching verdict is rendered from a criteria set, and no criteria set is bundled here. Until one is, every scan returns coaching.available=false together with the reason and the paths searched — unless the host has a criteria set of its own installed, in which case that one is loaded and said so. Read the field rather than inferring a verdict. Hosts below the macOS/arch floor get a server advertising zero tools and stating the reason, rather than a silent failure that reads as 'not configured yet'. The six MCP tool names are still walk_* : Walk was the development name, the tool names are the stable API, and they deliberately did not move when the product was named."
       }
     }
   ]

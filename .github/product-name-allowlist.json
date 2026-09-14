@@ -1,0 +1,200 @@
+{
+  "_": [
+    "WIRE_ALLOW for .github/check-product-name.py.",
+    "",
+    "Every entry is a token that legitimately contains the retired product name",
+    "WALK and must survive the rename. Each carries the reason it is wire rather",
+    "than display, because an allowlist without reasons is a list of exceptions",
+    "nobody can audit. Order matters only in that longer tokens are listed first,",
+    "so walk_scan_folder is stripped before walk_scan.",
+    "",
+    "Authority: decision #542 (the mark), #539 and #540 (the wire hold), #527",
+    "(sellableAsShot), brand_messaging #73 (the operator's English verb)."
+  ],
+  "allow": [
+    {
+      "token": "walk (scan|contract|grade|segments|proof-sheet|sheet|identifiers)",
+      "why": "CLI subcommand invocation — `walk` is the executable, not the product reference. #542 HOLD."
+    },
+    {
+      "token": "walk --version",
+      "why": "CLI invocation."
+    },
+    {
+      "token": "walk <input>",
+      "why": "CLI usage line in the README usage block."
+    },
+    {
+      "token": "\\$ walk ",
+      "why": "shell-prompt CLI invocation in a README example."
+    },
+    {
+      "token": "`walk`",
+      "why": "the bare binary name in backticks."
+    },
+    {
+      "token": "stdio walk ",
+      "why": "the manual `claude mcp add` server label, which must match serverInfo.name."
+    },
+    {
+      "token": "Walk\\.(xcworkspace|xcodeproj|xcscheme|app)",
+      "why": "Xcode target, scheme, workspace and bundle names. Development surface only (README frames it as such); renaming them is an Xcode project change, not a string swap."
+    },
+    {
+      "token": "Walk folder under",
+      "why": "the on-disk cache directory name under ~/Library/Caches, asserted by ClipFinderTests.swift:121. Functional path."
+    },
+    {
+      "token": "a Walk folder",
+      "why": "the same on-disk cache directory."
+    },
+    {
+      "token": "walk_scan_folder",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_proof_sheet",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_contract",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_segments",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_scan",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_grade",
+      "why": "MCP tool name. #542 HOLD."
+    },
+    {
+      "token": "walk_teleport",
+      "why": "deliberately nonexistent tool name, used by mcp-handshake.sh to prove the server refuses unknown tools. Lives in the tool namespace."
+    },
+    {
+      "token": "WalkKitTests",
+      "why": "Swift test target."
+    },
+    {
+      "token": "WalkKit",
+      "why": "Swift module name. #542 HOLD."
+    },
+    {
+      "token": "WalkVideoError",
+      "why": "Swift error type."
+    },
+    {
+      "token": "WalkKnownAnswer",
+      "why": "Swift test-fixture model."
+    },
+    {
+      "token": "Walk\\.(version|capabilities|check|Check|notImplemented|notImplementedReasons)",
+      "why": "members of `public enum Walk`, an API identifier. THIS IS THE PixelReaderRGBA16 SHAPE: logic wearing what looks like a name."
+    },
+    {
+      "token": "enum Walk",
+      "why": "the API identifier itself, Sources/WalkKit/Version.swift:24."
+    },
+    {
+      "token": "omatic-walk-launch\\.sh",
+      "why": "shipped launcher filename, referenced by both plugin manifests. Renaming it is a coupled change, not a string swap."
+    },
+    {
+      "token": "omatic-walk-degraded-server\\.sh",
+      "why": "shipped launcher filename, referenced by both plugin manifests."
+    },
+    {
+      "token": "walk-criteria\\.json",
+      "why": "criteria filename on disk."
+    },
+    {
+      "token": "walk-mcp",
+      "why": "binary and SPM target. #542 HOLD."
+    },
+    {
+      "token": "bin/walk\\b",
+      "why": "the CLI binary path. #542 HOLD."
+    },
+    {
+      "token": "walk (scan|contract|grade|segments|proof-sheet)",
+      "why": "CLI binary invocation — `walk` is the executable, not the product reference."
+    },
+    {
+      "token": "WALK_[A-Z_]+",
+      "why": "environment variable keys (WALK_CRITERIA, WALK_MCP_LOG, WALK_PAYLOAD_STRICT, …). Consumer-visible but keys, not labels."
+    },
+    {
+      "token": "OMATIC_WALK_[A-Z_]+",
+      "why": "environment variable keys set by the plugin launcher."
+    },
+    {
+      "token": "io\\.o-matic\\.walk",
+      "why": "reverse-DNS identifier."
+    },
+    {
+      "token": "io\\.omatic\\.walk",
+      "why": "reverse-DNS identifier."
+    },
+    {
+      "token": "\"walk\"",
+      "why": "the JSON response version key carried by every tool response, asserted by .github/mcp-handshake.sh:47 and by four test files. A consumer-checked contract. NOT in #542's written HOLD list — Carver's survey found the omission; it holds anyway."
+    },
+    {
+      "token": "\\bwalk\":",
+      "why": "the same response key in JSON source form."
+    },
+    {
+      "token": "header\\.walk",
+      "why": "the criteria file's engine-version field. #542 HOLD."
+    },
+    {
+      "token": "Support/Walk/",
+      "why": "on-disk directory under ~/Library/Application Support. Renaming it turns the operator's installed criteria set dark — Server.swift:88-98 records that a version bump was deliberately withheld to avoid exactly that. A functional path, held pending a migration ruling."
+    },
+    {
+      "token": "Support(/| )Walk\\b",
+      "why": "the same path as it appears in served prose."
+    },
+    {
+      "token": "Walk/(criteria\\.json|thumbnails|sheets)",
+      "why": "on-disk cache and criteria paths, asserted by ClipFinderTests.swift:121."
+    },
+    {
+      "token": "go walk this folder",
+      "why": "the operator's own phrase. brand_messaging #73 protects his sideways phrasing; this is the English VERB, not the mark, and it holds verbatim."
+    },
+    {
+      "token": "walk this folder",
+      "why": "English verb. #73."
+    },
+    {
+      "token": "Walk a folder",
+      "why": "English verb, tool title. #73."
+    },
+    {
+      "token": "Walk(ing)? a folder",
+      "why": "English verb. #73."
+    },
+    {
+      "token": "a (full )?folder walk",
+      "why": "English verb as a noun phrase. #73."
+    },
+    {
+      "token": "a full walk of",
+      "why": "English verb as a noun phrase. #73."
+    },
+    {
+      "token": "walked folders",
+      "why": "English verb. #73."
+    },
+    {
+      "token": "sellableAsShot",
+      "why": "band key held by #527 — the display label moved to KEEPER, the wire key deliberately did not."
+    }
+  ]
+}

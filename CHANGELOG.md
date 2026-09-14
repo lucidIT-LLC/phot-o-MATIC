@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased — 2026-09-14 — the product is **phot-o-MATIC**, and the pack moves out of the root
+
+**WALK WAS THE DEVELOPMENT NAME.** The product, the public mark and the
+repository are `phot-o-MATIC`, lowercase p, with the house `o-MATIC` suffix
+intact. **Every entry below this one is preserved exactly as written, under the
+old name, deliberately.** They record what happened on the dates they happened,
+when the product *was* called Walk; rewriting them would assert the product
+carried a name on a date it did not, in the one file whose whole job is to be
+the true record. Retirement is a state, never an erasure.
+
+**THE WIRE DID NOT MOVE, AND THAT IS THE POINT.** The six MCP tool names
+(`walk_scan`, `walk_scan_folder`, `walk_proof_sheet`, `walk_segments`,
+`walk_grade`, `walk_contract`), the `WalkKit` module, the `walk` and `walk-mcp`
+binaries, the criteria file's `walk` engine-version field, the `"walk"` JSON
+response key, `serverInfo.name`, the `Walk` enum, the `WALK_*` environment
+variables, the `sellableAsShot` band key and the on-disk
+`~/Library/Application Support/Walk/` criteria directory are all unchanged. They
+are the stable API and an installed criteria set must not go dark because a
+product was named. A tool rename is a breaking schema change and gets its own
+deliberate pass.
+
+**THE QUALIFIED TOOL NAMES DO CHANGE, even though the tool names do not.** A
+host composes `mcp__plugin_<plugin>_<server>__<tool>`, and the plugin name is
+half of that. `mcp__plugin_walk_walk__walk_scan` becomes
+`mcp__plugin_phot-o-matic_walk__walk_scan`. **Any saved permission rule or
+allowlist naming the old qualified form silently stops matching** — it does not
+error, it simply no longer applies. Re-approve the tools once on first use.
+
+**THE REPOSITORY IS THE MARKETPLACE; THE PACK IS `./phot-o-matic`.** It used to
+declare a plugin `source` of `"./"`, which Claude Code rejects — a repository
+cannot be both the marketplace and the plugin at its root. **That is why the
+plugin could not be installed**, and it was independent of the rename. The
+marketplace manifests now sit at the root (`.claude-plugin/marketplace.json`
+and, for Codex, `.agents/plugins/marketplace.json`) and the pack sits one
+directory down, the same shape as every other o-MATIC door. `make plugin-check`
+now asserts it, and the assertion was demonstrated failing against `"./"` before
+it was trusted.
+
+Install line: `claude plugin install phot-o-matic@phot-o-matic`.
+
+**New gate: `make name-check`.** A retired-product-name detector scoped to the
+published surface, with an allowlist that carries a written reason per token —
+and, under it, an **inverted** assertion that fails when a *held* wire token
+stops appearing. The second half is the one that matters: a one-directional
+check only punishes under-renaming, and the defect this estate has actually paid
+for is the other direction, a substitution pass eating an API identifier that
+looked like a name. Both directions are proven on planted fixtures under
+`--selftest`.
+
+Not yet published. The public repository does not exist and creating it is a
+separate, gated step.
+
 ## Unreleased — Pixel is gone (decision #538), and the gate stops existing twice
 
 **THE CONFORMANCE CHECK EXISTED IN TWO PLACES AND HAD ALREADY DIVERGED.** This

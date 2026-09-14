@@ -171,12 +171,19 @@ install-mcp: release
 	@echo "Trace the wire: WALK_MCP_LOG=/tmp/walk-wire.log in the server's env"
 
 # ---------------------------------------------------------------------------
-# THE PLUGIN PAYLOAD — decision #534.
+# THE PLUGIN PAYLOAD.
 #
-# Walk ships as an o-MATIC plugin installed from the GitHub marketplace, which
-# means the REPOSITORY ROOT IS THE PLUGIN ROOT: .mcp.json, .claude-plugin/,
-# .codex-plugin/, skills/ and bin/ are the payload a host clones, and bin/walk-mcp
-# is a committed build artifact rather than something the host compiles.
+# phot-o-MATIC ships as an o-MATIC plugin installed from the GitHub marketplace.
+# THE REPOSITORY ROOT IS THE MARKETPLACE; THE PLUGIN ROOT IS ./phot-o-matic.
+# Claude Code refuses a repository that is both at once — a plugin `source` of
+# "." is invalid, recorded 2026-06-05 — and every working o-MATIC door declares a
+# subdirectory (./agency, ./studio, ./firm, ./wordpress, ./microsoft-365).
+# MEASURED 2026-09-14: this pack declared "./" and could not be installed at all.
+#
+# So $(PACK)/.mcp.json, $(PACK)/.claude-plugin/, $(PACK)/.codex-plugin/,
+# $(PACK)/skills/ and $(PACK)/bin/ are the payload a host gets, and
+# $(PACK)/bin/walk-mcp is a committed build artifact rather than something the
+# host compiles.
 #
 # THIS TARGET CALLS .github/stage-binary.sh AND DOES NOT REIMPLEMENT ITS CHECK.
 # That script's own header states the rationale and it applies verbatim here:
@@ -189,7 +196,8 @@ install-mcp: release
 #
 # So: same script, different bindir. The plugin binary cannot silently disagree
 # with Sources/WalkKit/Version.swift, because the same code refuses to stage it.
-PLUGINBIN := $(CURDIR)/bin
+PACK      := phot-o-matic
+PLUGINBIN := $(CURDIR)/$(PACK)/bin
 
 stage-plugin: release
 	./.github/stage-binary.sh walk-mcp $(MCP) $(PLUGINBIN)
@@ -210,14 +218,16 @@ plugin-check:
 	@set -e; \
 	fail=0; \
 	declared="$$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/WalkKit/Version.swift)"; \
-	for f in .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json \
-	         bin/omatic-walk-launch.sh bin/omatic-walk-degraded-server.sh bin/walk-mcp; do \
+	for f in .claude-plugin/marketplace.json .agents/plugins/marketplace.json \
+	         $(PACK)/.mcp.json $(PACK)/.claude-plugin/plugin.json $(PACK)/.codex-plugin/plugin.json \
+	         $(PACK)/bin/omatic-walk-launch.sh $(PACK)/bin/omatic-walk-degraded-server.sh $(PACK)/bin/walk-mcp; do \
 		[ -e "$$f" ] || { echo "plugin-check FAILED: $$f is missing from the payload" >&2; fail=1; }; \
 	done; \
-	for f in bin/omatic-walk-launch.sh bin/omatic-walk-degraded-server.sh bin/walk-mcp; do \
+	for f in $(PACK)/bin/omatic-walk-launch.sh $(PACK)/bin/omatic-walk-degraded-server.sh $(PACK)/bin/walk-mcp; do \
 		[ -x "$$f" ] || { echo "plugin-check FAILED: $$f is not executable; a host will not be able to spawn it" >&2; fail=1; }; \
 	done; \
-	for f in .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json; do \
+	for f in .claude-plugin/marketplace.json .agents/plugins/marketplace.json \
+	         $(PACK)/.mcp.json $(PACK)/.claude-plugin/plugin.json $(PACK)/.codex-plugin/plugin.json; do \
 		python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$$f" || \
 			{ echo "plugin-check FAILED: $$f is not valid JSON" >&2; fail=1; }; \
 	done; \
@@ -227,30 +237,42 @@ plugin-check:
 	: 'and a bare $${PLUGIN_ROOT} does not expand, so the host spawns /bin/sh on a'; \
 	: 'path beginning with a literal dollar sign and the plugin has no tools. That'; \
 	: 'reads as "not configured". This is the check that keeps it from being ours.'; \
-	if grep -q '\$${PLUGIN_ROOT}' .mcp.json .claude-plugin/plugin.json .codex-plugin/plugin.json 2>/dev/null; then \
+	if grep -q '\$${PLUGIN_ROOT}' $(PACK)/.mcp.json $(PACK)/.claude-plugin/plugin.json $(PACK)/.codex-plugin/plugin.json 2>/dev/null; then \
 		echo "plugin-check FAILED: a manifest uses \$${PLUGIN_ROOT}, which is not a" >&2; \
 		echo "  documented variable and does not expand. Use \$${CLAUDE_PLUGIN_ROOT}." >&2; \
 		fail=1; \
 	fi; \
-	grep -q 'CLAUDE_PLUGIN_ROOT' .mcp.json || \
-		{ echo "plugin-check FAILED: .mcp.json does not reference \$${CLAUDE_PLUGIN_ROOT}; the launcher path cannot resolve" >&2; fail=1; }; \
+	grep -q 'CLAUDE_PLUGIN_ROOT' $(PACK)/.mcp.json || \
+		{ echo "plugin-check FAILED: $(PACK)/.mcp.json does not reference \$${CLAUDE_PLUGIN_ROOT}; the launcher path cannot resolve" >&2; fail=1; }; \
 	: 'One version, not two that can diverge — the whole lesson of #729.'; \
-	for m in .claude-plugin/plugin.json .codex-plugin/plugin.json; do \
+	for m in $(PACK)/.claude-plugin/plugin.json $(PACK)/.codex-plugin/plugin.json; do \
 		mv="$$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['version'])" "$$m")"; \
 		[ "$$mv" = "$$declared" ] || { echo "plugin-check FAILED: $$m declares $$mv, the source tree declares $$declared" >&2; fail=1; }; \
 	done; \
-	if [ -e bin/walk-mcp ]; then \
+	if [ -e $(PACK)/bin/walk-mcp ]; then \
 		: 'stdin is closed so a stdio server cannot park on it.'; \
-		iv="$$(./bin/walk-mcp --version < /dev/null 2>/dev/null || true)"; \
-		[ "$$iv" = "$$declared" ] || { echo "plugin-check FAILED: bin/walk-mcp reports '$$iv', tree declares '$$declared'" >&2; fail=1; }; \
-		file bin/walk-mcp | grep -q 'arm64' || { echo "plugin-check FAILED: bin/walk-mcp is not an arm64 Mach-O" >&2; fail=1; }; \
-		if xattr bin/walk-mcp 2>/dev/null | grep -q 'com.apple.quarantine'; then \
-			echo "plugin-check FAILED: bin/walk-mcp carries com.apple.quarantine and macOS will refuse to run it" >&2; fail=1; \
+		iv="$$(./$(PACK)/bin/walk-mcp --version < /dev/null 2>/dev/null || true)"; \
+		[ "$$iv" = "$$declared" ] || { echo "plugin-check FAILED: $(PACK)/bin/walk-mcp reports '$$iv', tree declares '$$declared'" >&2; fail=1; }; \
+		file $(PACK)/bin/walk-mcp | grep -q 'arm64' || { echo "plugin-check FAILED: $(PACK)/bin/walk-mcp is not an arm64 Mach-O" >&2; fail=1; }; \
+		if xattr $(PACK)/bin/walk-mcp 2>/dev/null | grep -q 'com.apple.quarantine'; then \
+			echo "plugin-check FAILED: $(PACK)/bin/walk-mcp carries com.apple.quarantine and macOS will refuse to run it" >&2; fail=1; \
 		fi; \
 	fi; \
-	: 'The three skills are payload, not decoration — #534 ships them inside.'; \
+	: 'The three skills are payload, not decoration — they ship inside the pack.'; \
 	for s in media-triage coreml-vision creator-studio; do \
-		[ -f "skills/$$s/SKILL.md" ] || { echo "plugin-check FAILED: skills/$$s/SKILL.md is missing" >&2; fail=1; }; \
+		[ -f "$(PACK)/skills/$$s/SKILL.md" ] || { echo "plugin-check FAILED: $(PACK)/skills/$$s/SKILL.md is missing" >&2; fail=1; }; \
+	done; \
+	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
+	: 'DECISION #106, 2026-06-05: a repository cannot be both the marketplace and'; \
+	: 'the plugin at its root, and a plugin source of "." is invalid. MEASURED'; \
+	: '2026-09-14: this pack declared "./" and the operator could not install it.'; \
+	: 'Every working o-MATIC door declares a subdirectory. Asserted, not trusted.'; \
+	for mp in .claude-plugin/marketplace.json .agents/plugins/marketplace.json; do \
+		python3 -c "import json,sys; \
+d=json.load(open(sys.argv[1])); \
+bad=[p for p in d['plugins'] if (p['source'] if isinstance(p['source'],str) else p['source']['path']) in ('.','./','')]; \
+sys.exit(1 if bad else 0)" "$$mp" || \
+			{ echo "plugin-check FAILED: $$mp declares a root plugin source; a repo cannot be both marketplace and plugin" >&2; fail=1; }; \
 	done; \
 	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
 	echo "  plugin payload OK — walk-mcp $$declared, arm64, unquarantined, manifests agree"
@@ -339,8 +361,19 @@ gate: gate-home
 gate-home:
 	./Tools/brand-gate/check-single-home.sh
 
+# THE RETIRED-PRODUCT-NAME GATE, and the inverted wire assertion under it.
+#
+# Two halves, and the second one is the point: the retired half punishes
+# UNDER-renaming, and the wire half FAILS when an over-enthusiastic rename eats
+# a held token. The Pixel-to-Andy pass rewrote PixelReaderRGBA16 to AndyReader*
+# because an API identifier looked like a name; only the inverted half catches
+# that shape. --selftest proves both directions on planted fixtures.
+name-check:
+	./.github/check-product-name.py --selftest
+	./.github/check-product-name.py
+
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations test mcp-check contract gate-check plugin-check payload-check payload-size
+verify: deprecations test mcp-check contract gate-check name-check plugin-check payload-check payload-size
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"

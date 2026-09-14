@@ -36,13 +36,13 @@ Drone and modern phone video is 10-bit **HLG BT.2020** (`arib-std-b67`). A
 straight frame grab looks washed out and you will misjudge it.
 
 **This machine's ffmpeg has NO HLG path** — no `zscale`, no `libplacebo`, and
-`colorspace` rejects `arib-std-b67`. Do not hand-roll the transform. Walk carries
+`colorspace` rejects `arib-std-b67`. Do not hand-roll the transform. phot-o-MATIC carries
 `hlg.sdr.transform` and `hlg.systemGamma` as measured capabilities and its scan
 writes correctly-rendered display PNGs. Use the instrument.
 
 System gamma for SDR at 100 nits is **0.78**, not 1.2 — 1.2 is the 1000-nit value.
 
-## Walk, and what its verdict does and does not mean
+## phot-o-MATIC, and what its verdict does and does not mean
 
 Use the **CLI**, not the MCP tool, for repeated work. The MCP response embeds the
 entire criteria file — roughly 5,000 tokens of identical boilerplate per call
@@ -98,7 +98,7 @@ folder the tests asserted on.
 ## Cutting
 
 Stream-copy (`-c copy`) whenever the pixels should survive — verify with matching
-frame hashes, which proves it byte-for-byte. **Walk cannot do this**: its
+frame hashes, which proves it byte-for-byte. **phot-o-MATIC cannot do this**: its
 passthrough path is open defect #721 and it re-encodes, and it never reads, writes
 or retimes **audio**, so its segments come out silent.
 

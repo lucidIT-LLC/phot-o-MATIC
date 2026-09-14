@@ -1,0 +1,14 @@
+{
+  "name": "phot-o-matic",
+  "description": "phot-o-MATIC — on-device footage triage for photographers. Decodes video on Apple silicon and returns the frames worth a second look, with the measurements underneath as evidence. Requires macOS 26 on Apple silicon.",
+  "plugins": [
+    {
+      "name": "phot-o-matic",
+      "source": {
+        "source": "local",
+        "path": "./phot-o-matic"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
