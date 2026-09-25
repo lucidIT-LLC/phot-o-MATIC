@@ -812,8 +812,10 @@ enum Tools {
             the handles asked for, the SHORTFALL IS REPORTED rather than silently \
             clamped: an event 0.70 s into a clip has 0.70 s of lead-in and the \
             result says so. Without out_dir nothing is written and the ranges come \
-            back as a plan. With out_dir each segment is re-encoded to its own \
-            HEVC Main10 HLG .mov and verified by reading the frames back.
+            back as a plan. With out_dir each segment is written to its own .mov \
+            and verified by reading the frames back: re-encoded to HEVC Main10 HLG \
+            and retimed by default, or with passthrough=true the stored bitstream \
+            copied as-is (no decode, no encode, no retime, no generation loss).
             """,
         inputSchema: schema([
             "path": str("Absolute path to the video file."),
@@ -821,7 +823,8 @@ enum Tools {
             "lead_seconds": num("Seconds before each event."),
             "tail_seconds": num("Seconds after each event."),
             "out_dir": str("Write the segments here. Omit to get the plan without writing anything."),
-            "fps": int("Output frame rate. Retiming is exact integer-rational, so 60 to 30 is a true 2/1.", default: 30),
+            "fps": int("Output frame rate for the re-encode path. Retiming is exact integer-rational, so 60 to 30 is a true 2/1. Ignored when passthrough is true.", default: 30),
+            "passthrough": bool("Copy the stored bitstream instead of re-encoding. Frames requested must equal frames decodable on readback or the segment fails with an error (#721).", default: false),
             "from_frame": int("First frame to consider, inclusive."),
             "to_frame": int("Last frame to consider, exclusive."),
             "vision": bool("Classify candidates before building ranges.", default: false),
@@ -893,6 +896,7 @@ enum Tools {
                 if let outDir {
                     try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
                 }
+                let passthrough = a["passthrough"]?.boolValue ?? false
                 let writer = VideoWriter(options: .init(targetFrameRate: fps))
                 let reader = outDir != nil ? try await VideoReader(url: url) : nil
                 let stem = url.deletingPathExtension().lastPathComponent
@@ -918,6 +922,27 @@ enum Tools {
                     let out = outDir.appendingPathComponent(
                         String(format: "%@_seg%02d_f%06d.mov", stem, n + 1, s.eventIndex))
                     do {
+                        if passthrough {
+                            let r = try await writer.passthrough(reader, frames: s.frames, to: out)
+                            wrote.append(.object([
+                                "path": .string(r.url.path),
+                                "mode": .string("passthrough"),
+                                "framesRequested": .int(r.framesRequested),
+                                "samplesAppended": .int(r.samplesAppended),
+                                "leadInSamples": .int(r.leadInSamples),
+                                "framesDecodable": .int(r.framesDecodable),
+                                "verified": .bool(r.verified),
+                                "verificationNote": .string(r.verificationNote),
+                                "outputSeconds": .double(r.outputSeconds),
+                                "outputFrameRate": .double(r.outputFrameRate),
+                                "codec": .string(r.codec),
+                                "bitDepth": .optional(r.bitDepth),
+                                "transferFunction": .optional(r.transferFunction),
+                                "bytes": .int(r.bytes),
+                                "copySamplesPerSecond": .double(r.framesPerSecondCopied),
+                            ]))
+                            continue
+                        }
                         let r = try await writer.write(reader, frames: s.frames, to: out)
                         wrote.append(.object([
                             "path": .string(r.url.path),
@@ -962,7 +987,9 @@ enum Tools {
                     "wrote": .array(wrote),
                     "note": .string(outDir == nil
                         ? "No out_dir given, so nothing was written. These are the ranges that would be cut."
-                        : "Re-encode path only. Passthrough is open defect task #721 — 180x faster and silently 22 frames short with every success signal returning true. Segments carry no audio (video.audio is not implemented)."),
+                        : passthrough
+                            ? "Passthrough: the stored bitstream copied with no decode, encode or retime (fps ignored). Each file was read back and its decodable frame count compared to the frames requested; a difference is an error, never a short file (#721). Segments carry no audio (video.audio is not implemented)."
+                            : "Re-encode path (HEVC Main10 HLG, retimed). Pass passthrough=true to copy the stored bitstream instead: no generation loss and about 180x faster. Segments carry no audio (video.audio is not implemented)."),
                 ]))
             } catch is CancellationError {
                 return .failure("Cancelled.")

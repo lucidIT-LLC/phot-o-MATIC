@@ -19,6 +19,17 @@ public enum WalkVideoError: Error, CustomStringConvertible {
     /// The control that defect #721 did not have. A writer that reports success
     /// and produces a short file must fail here, not later and quietly.
     case shortOutput(appended: Int, decodable: Int, url: URL)
+    /// The passthrough control (#721, closed): frames asked for and frames
+    /// decodable out of the finished file are the same number or the write is an
+    /// error. Not a warning, not a note on a report — an error.
+    case frameCountMismatch(requested: Int, decodable: Int, url: URL)
+    /// The readback decoder refused the finished file part-way through. MEASURED
+    /// 2026-09-25: one media sample dropped from inside the requested range
+    /// surfaced here as AVFoundationErrorDomain -11821 "Cannot Decode" rather
+    /// than as a shorter count. Same verdict as a mismatch — the file does not
+    /// hold what was asked for — with the decoder's own reason attached.
+    case readbackFailed(requested: Int, decodedBeforeFailure: Int, url: URL, underlying: String)
+    case emptyFrameRange
     case thumbnailWriteFailed(URL)
 
     public var description: String {
@@ -33,6 +44,11 @@ public enum WalkVideoError: Error, CustomStringConvertible {
         case .nonMonotonicTimestamp(let f): return "retimed output timestamp did not increase at source frame \(f)"
         case .shortOutput(let a, let d, let u):
             return "SHORT OUTPUT: appended \(a) frames, \(d) are decodable in \(u.lastPathComponent) — \(a - d) lost with no error from the writer"
+        case .frameCountMismatch(let r, let d, let u):
+            return "FRAME COUNT MISMATCH: \(r) frames requested, \(d) decodable in \(u.lastPathComponent) — \(r - d) missing with no error from the writer"
+        case .readbackFailed(let r, let d, let u, let why):
+            return "READBACK FAILED: \(r) frames requested, the decoder stopped after \(d) in \(u.lastPathComponent) — \(why)"
+        case .emptyFrameRange:            return "an empty frame range cannot be written"
         case .thumbnailWriteFailed(let u): return "could not write the display PNG to \(u.path)"
         }
     }
@@ -279,6 +295,10 @@ public final class VideoReader {
     public let info: VideoInfo
     let asset: AVURLAsset
     let track: AVAssetTrack
+    /// The track's first format description, kept for the passthrough writer's
+    /// `sourceFormatHint`. Passthrough samples are the stored bitstream, and the
+    /// writer needs the parameter sets to build the output track.
+    public let formatDescription: CMFormatDescription?
 
     public init(url: URL) async throws {
         self.url = url
@@ -298,6 +318,7 @@ public final class VideoReader {
 
         var codec = "????", bits: Int? = nil
         var primaries: String? = nil, transfer: String? = nil, matrix: String? = nil
+        self.formatDescription = formats.first
         if let fd = formats.first {
             codec = fourCC(CMFormatDescriptionGetMediaSubType(fd))
             let ext = CMFormatDescriptionGetExtensions(fd) as? [String: Any] ?? [:]
@@ -423,12 +444,13 @@ public final class VideoReader {
         public var error: Error? { reader.error }
     }
 
-    /// Open a pass. `frames == nil` reads the whole file.
+    /// Open a DECODED pass. `frames == nil` reads the whole file.
     ///
-    /// NOTE on trimming: a DECODED pass (non-nil outputSettings, which is what
-    /// this always uses) honours the requested start frame. A passthrough pass
-    /// does not — it snaps back to the preceding sync sample, which is cause (3)
-    /// of open defect task #721. `VideoWriter` re-encodes for that reason.
+    /// NOTE on trimming: a decoded pass honours the requested start frame. A
+    /// passthrough pass (`passthroughPass(frames:)`) cannot — compressed video
+    /// decodes only from a sync sample, so the reader delivers from the sync
+    /// sample at or before the requested start. That is not a defect; it is what
+    /// a GOP is. The writer's session start time edits the lead-in out (#721).
     public func pass(frames: Range<Int>? = nil,
                      pixelFormat: OSType = VideoReader.tenBitVideoRange) throws -> Pass {
         let reader = try AVAssetReader(asset: asset)
@@ -447,6 +469,90 @@ public final class VideoReader {
         let provider = reader.outputProvider(for: output)
         return Pass(reader: reader, provider: provider,
                     frameDurationSeconds: CMTimeGetSeconds(info.frameDuration))
+    }
+
+    // MARK: One passthrough pass over the file
+
+    /// A single forward pass that delivers the STORED bitstream: compressed
+    /// samples exactly as the container holds them, in DECODE order, with their
+    /// original timestamps. This is the reader half of `VideoWriter.passthrough`.
+    ///
+    /// MEASURED 2026-09-25 on clip 0012, frames 2300..<2400 (task #721): the
+    /// reader delivered 124 sample buffers for a 100-frame request —
+    ///   * 120 media samples, frames 2280...2399, because 2300 is 20 frames into
+    ///     a 30-frame GOP and decode has to begin at the sync sample (2280);
+    ///   * 4 ZERO-SAMPLE MARKER BUFFERS: one at the requested start carrying no
+    ///     data (PTS 2300, DTS invalid), two with no timing at all, and one
+    ///     `EmptyMedia`/`PermanentEmptyMedia` marker at the requested end.
+    /// Those markers are what the 2026-09-12 spike counted as "samples with an
+    /// invalid presentationTimeStamp", and the lead-in is what it counted as
+    /// frames that were later "lost". Neither is a frame. `next()` returns media
+    /// samples only and counts the markers in `markersSkipped`, so a caller's
+    /// append count is a count of samples that carry pixels.
+    public final class SamplePass {
+        private let reader: AVAssetReader
+        private let provider: AVAssetReaderOutput.Provider<CMReadySampleBuffer<CMSampleBuffer.DynamicContent>>
+        private var started = false
+        private var registered = false
+        public private(set) var delivered = 0
+        public private(set) var markersSkipped = 0
+
+        init(reader: AVAssetReader,
+             provider: AVAssetReaderOutput.Provider<CMReadySampleBuffer<CMSampleBuffer.DynamicContent>>) {
+            self.reader = reader
+            self.provider = provider
+            StallWatchdog.armIfRequested()
+        }
+
+        /// The next media sample in decode order, or nil at end of stream. Runs
+        /// on `ReadExecutor` for the same reason `Pass.next()` does (task #764).
+        public func next() async throws -> CMReadySampleBuffer<CMSampleBuffer.DynamicContent>? {
+            try await ReadExecutor.run { try await self.nextOnReadExecutor() }
+        }
+
+        private func nextOnReadExecutor() async throws -> CMReadySampleBuffer<CMSampleBuffer.DynamicContent>? {
+            if !started {
+                try reader.start(); started = true
+                if !registered { registered = true; StallWatchdog.passBegan() }
+            }
+            while let ready = try await provider.next() {
+                let samples = ready.withUnsafeSampleBuffer { CMSampleBufferGetNumSamples($0) }
+                guard samples > 0 else { markersSkipped += 1; continue }
+                delivered += 1
+                StallWatchdog.beat()
+                return ready
+            }
+            if registered { registered = false; StallWatchdog.passEnded() }
+            return nil
+        }
+
+        public func cancel() {
+            reader.cancelReading()
+            if registered { registered = false; StallWatchdog.passEnded() }
+        }
+
+        deinit {
+            if registered { StallWatchdog.passEnded() }
+        }
+        public var status: AVAssetReader.Status { reader.status }
+        public var error: Error? { reader.error }
+    }
+
+    /// Open a passthrough pass: `outputSettings: nil`, which Apple documents as
+    /// "the input passes the samples through to the output without reencoding
+    /// them" (AVAssetWriterInput.outputSettings) and, on the reader side, media
+    /// samples "read in the format in which they are stored in the asset"
+    /// (AVAssetReaderTrackOutput). `frames == nil` reads the whole file.
+    public func passthroughPass(frames: Range<Int>? = nil) throws -> SamplePass {
+        let reader = try AVAssetReader(asset: asset)
+        if let frames, !frames.isEmpty {
+            reader.timeRange = CMTimeRange(
+                start: time(ofFrame: frames.lowerBound),
+                duration: CMTimeMultiply(info.frameDuration, multiplier: Int32(clamping: frames.count)))
+        }
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+        let provider = reader.outputProvider(for: output)
+        return SamplePass(reader: reader, provider: provider)
     }
 
     // MARK: Single frames

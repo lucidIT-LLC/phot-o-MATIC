@@ -415,17 +415,19 @@ enum SegmentsCommand {
         guard argv.count >= 3 else {
             err("""
                 usage: walk segments <video> [--handles <sec>] [--lead <sec>] [--tail <sec>]
-                                     [--out <dir>] [--fps <n>] [--dry-run] [--frames a-b]
+                                     [--out <dir>] [--fps <n>] [--passthrough] [--dry-run] [--frames a-b]
                 """)
         }
         let path = argv[2]
         var lead = 1.0, tail = 1.0, fps: Int32 = 30
         var outDir: String? = nil
         var dryRun = false
+        var passthrough = false
         var frames: Range<Int>? = nil
         var i = 3
         while i < argv.count {
             switch argv[i] {
+            case "--passthrough": passthrough = true
             case "--handles": i += 1; let v = Double(argv[safe: i] ?? "") ?? 1.0; lead = v; tail = v
             case "--lead":    i += 1; lead = Double(argv[safe: i] ?? "") ?? lead
             case "--tail":    i += 1; tail = Double(argv[safe: i] ?? "") ?? tail
@@ -497,18 +499,33 @@ enum SegmentsCommand {
             for (n, s) in segments.enumerated() {
                 let out = dir.appendingPathComponent(String(format: "%@_seg%02d_f%06d.mov", stem, n + 1, s.eventIndex))
                 do {
-                    let r = try await writer.write(reader, frames: s.frames, to: out)
-                    print(String(format: "  %@  %d frames -> %.4f s at %.2f fps  %@ %@bit %@  %.1f MB  %.1f fps encode",
-                                 out.lastPathComponent, r.framesAppended, r.outputSeconds,
-                                 r.outputFrameRate, r.codec, r.bitDepth.map(String.init) ?? "?",
-                                 r.transferFunction ?? "?", Double(r.bytes) / 1e6, r.framesPerSecondEncoded))
-                    print("      retime \(r.retimeRatio.numerator)/\(r.retimeRatio.denominator) — \(r.verificationNote)")
+                    if passthrough {
+                        let r = try await writer.passthrough(reader, frames: s.frames, to: out)
+                        print(String(format: "  %@  %d frames -> %.4f s at %.2f fps  %@ %@bit %@  %.1f MB  %.0f samples/s copied",
+                                     out.lastPathComponent, r.framesDecodable, r.outputSeconds,
+                                     r.outputFrameRate, r.codec, r.bitDepth.map(String.init) ?? "?",
+                                     r.transferFunction ?? "?", Double(r.bytes) / 1e6, r.framesPerSecondCopied))
+                        print("      passthrough — \(r.verificationNote)")
+                    } else {
+                        let r = try await writer.write(reader, frames: s.frames, to: out)
+                        print(String(format: "  %@  %d frames -> %.4f s at %.2f fps  %@ %@bit %@  %.1f MB  %.1f fps encode",
+                                     out.lastPathComponent, r.framesAppended, r.outputSeconds,
+                                     r.outputFrameRate, r.codec, r.bitDepth.map(String.init) ?? "?",
+                                     r.transferFunction ?? "?", Double(r.bytes) / 1e6, r.framesPerSecondEncoded))
+                        print("      retime \(r.retimeRatio.numerator)/\(r.retimeRatio.denominator) — \(r.verificationNote)")
+                    }
                 } catch {
                     print("  \(out.lastPathComponent)  FAILED: \(error)")
                 }
             }
-            print("\nRe-encode path only. Passthrough is open defect task #721 — 180x faster and")
-            print("silently 22 frames short with every success signal returning true.")
+            if passthrough {
+                print("\nPassthrough: the stored bitstream copied, no decode, no encode, no retime (--fps ignored).")
+                print("Each file was read back and its decodable frame count compared to the frames asked for;")
+                print("a difference is an error, never a short file (#721). Segments carry no audio.")
+            } else {
+                print("\nRe-encode path (HEVC Main10 HLG, retimed). Add --passthrough to copy the stored")
+                print("bitstream instead — no generation loss, and about 180x faster. Segments carry no audio.")
+            }
         } catch { err("segments failed: \(error)") }
     }
 }

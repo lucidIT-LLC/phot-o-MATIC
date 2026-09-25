@@ -14,7 +14,7 @@
       "name": "phot-o-matic",
       "displayName": "phot-o-MATIC",
       "source": "./phot-o-matic",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "description": "phot-o-MATIC decodes video on Apple silicon and finds the frames worth a second look: a whole-frame luminance-rise detector paired with an on-device Vision classifier. Every candidate carries its frame index, timecode, the rise over a local median baseline, 10-bit Y-plane statistics, classifier confidences, and a written thumbnail. The classification runs on the machine, so looking at several thousand frames costs no tokens.",
       "author": {
         "name": "LucidIT, LLC",

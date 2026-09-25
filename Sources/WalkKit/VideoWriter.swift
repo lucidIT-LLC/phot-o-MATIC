@@ -4,29 +4,59 @@ import CoreMedia
 import CoreVideo
 import VideoToolbox
 
-/// Writes a frame range to a new file. RE-ENCODE ONLY.
+/// Writes a frame range to a new file. Two paths, and each proves its own count.
 ///
-/// WHY PASSTHROUGH IS NOT HERE, and it is not an omission.
+/// `write(_:frames:to:)` RE-ENCODES: HEVC Main10 + HLG, retimed by an exact
+/// integer ratio, verified by reading the finished file back. MEASURED cost of
+/// that path: the round trip moved frame 2347's Y mean from 439.098 to 439.079 —
+/// a delta of 0.019 code values, 0.0044%, through a full HEVC encode and decode.
 ///
-/// Open defect task #721, measured 2026-09-12 and recorded in decision #495:
-/// writing a trimmed range through `AVAssetWriter` passthrough appended 122
-/// samples, EVERY `append()` returned true, `writer.status` was `.completed`,
-/// `writer.error` was nil — and the file held 100 decodable frames. 22 frames
-/// gone, with no error surfaced anywhere in the API. Surviving frames were
-/// bit-exact, so spot-checking any one of them passes while a fifth of the
-/// footage is missing. Three causes were found, two fixed, and the third —
-/// passthrough trim cannot start mid-GOP, so a request for frame 2300 snaps back
-/// to 2280 — was NOT root-caused.
+/// `passthrough(_:frames:to:)` COPIES THE STORED BITSTREAM, no decode and no
+/// encode. It was open defect task #721 from 2026-09-12 to 2026-09-25, and the
+/// history is kept here because the defect was in the instrument, not the file:
 ///
-/// Passthrough is 15,479 fps against 86.6 for re-encode, a 180x difference, so
-/// it is worth fixing and task #721 is open against it. It is not worth shipping
-/// until a trimmed passthrough range produces a file whose decodable frame count
-/// equals the requested count on at least two clips, AND a deliberately induced
-/// failure surfaces as an error rather than as a short file.
+/// The 2026-09-12 spike (decision #495) appended 122 samples, every append
+/// returned true, `writer.status` was `.completed`, `writer.error` was nil, and
+/// "the file held 100 decodable frames" — reported as 22 frames lost. MEASURED
+/// 2026-09-25 with the same request (clip 0012, frames 2300..<2400): the reader
+/// delivers 120 media samples plus 4 zero-sample marker buffers. 2300 is twenty
+/// frames into a 30-frame GOP, and compressed video decodes only from a sync
+/// sample, so the reader starts at 2280 — twenty frames of LEAD-IN that must be
+/// stored for the requested frames to decode at all. The file held exactly the
+/// 100 frames that were asked for. Nothing was lost; the count of samples
+/// appended was compared to a count of frames presented, and they are not the
+/// same quantity. "Cannot start mid-GOP" was cause (3) and it is not a defect:
+/// it is what a GOP is.
 ///
-/// MEASURED cost of the honest path: the re-encode round trip moved frame 2347's
-/// Y mean from 439.098 to 439.079 — a delta of 0.019 code values, 0.0044%,
-/// through a full HEVC Main10 encode and decode.
+/// So the passthrough path does what Apple's own documentation describes and
+/// nothing cleverer:
+///   * samples go to the writer in DECODE order as delivered — append(_:) says
+///     "order and append them according to their decode timestamp";
+///   * `startSession(atSourceTime:)` is the REQUESTED start — "samples with
+///     timestamps earlier than startTime will still be added to the output file
+///     but will be edited out (i.e. not presented during playback)";
+///   * `endSession(atSourceTime:)` is the REQUESTED end — the same sentence for
+///     samples later than the end time;
+///   * `SampleBufferReceiver.append(_:)` "suspends until the input is ready for
+///     more media data", which is the documented replacement for the
+///     `readyForMoreMediaData` loop and the reason the tight-loop
+///     NSInternalInconsistencyException of 2026-09-12 cannot recur;
+///   * every append has returned before `finishWriting()` — "to guarantee that
+///     all sample buffers are successfully written, ensure all calls to
+///     append have returned before invoking this method".
+///
+/// AND THE CONTROL: readback is not optional on this path. Frames requested and
+/// frames decodable out of the finished file are compared, and a difference is
+/// `WalkVideoError.frameCountMismatch` — an error, never a warning. A test
+/// induces a loss and asserts it surfaces that way.
+///
+/// Sources, read 2026-09-25: AVAssetWriterInput.h (readyForMoreMediaData,
+/// appendSampleBuffer:, markAsFinished), AVAssetWriter.h
+/// (startSessionAtSourceTime:, endSessionAtSourceTime:,
+/// finishWritingWithCompletionHandler:), AVAssetReader.h (timeRange), the
+/// macOS 27.0 SDK, and developer.apple.com/documentation/avfoundation for
+/// AVAssetWriterInput.SampleBufferReceiver.append(_:), appendImmediately(_:),
+/// finish(), AVAssetWriter.inputReceiver(for:), and AVAssetReaderOutput.Provider.
 public struct VideoWriter: Sendable {
 
     public struct Options: Sendable {
@@ -39,6 +69,13 @@ public struct VideoWriter: Sendable {
         /// Re-read the finished file and count its decodable frames. Leave this
         /// on. It is the control defect #721 did not have.
         public var verifyByReadback: Bool
+
+        /// TEST HOOK, internal on purpose. When set, the passthrough path
+        /// silently drops the media sample at this index before appending it.
+        /// It exists so a test can prove the frame-count control CAN FAIL —
+        /// the discipline every gate in this repository follows (`--selftest`).
+        /// Nothing outside the test target can set it.
+        var inducedLossForTesting: Int? = nil
 
         public init(targetFrameRate: Int32 = 30,
                     averageBitRate: Int = 130_000_000,
@@ -206,6 +243,150 @@ public struct VideoWriter: Sendable {
 
         if let decodable, decodable != appended {
             throw WalkVideoError.shortOutput(appended: appended, decodable: decodable, url: url)
+        }
+        return report
+    }
+
+    // MARK: - Passthrough
+
+    public struct PassthroughReport: Sendable {
+        public let url: URL
+        public let sourceFrames: Range<Int>
+        public let framesRequested: Int
+        /// Media samples handed to the writer. INCLUDES the lead-in: the samples
+        /// from the sync sample at or before the requested start, which the file
+        /// must carry for the requested frames to decode. Not a frame count of
+        /// the output, and never compared to one — that comparison was #721.
+        public let samplesAppended: Int
+        /// Samples before the requested start (GOP lead-in, stored, edited out).
+        public let leadInSamples: Int
+        /// Samples at or after the requested end (stored, edited out).
+        public let pastEndSamples: Int
+        /// Zero-sample marker buffers the reader delivered and the pass skipped.
+        public let markersSkipped: Int
+        /// Decoded back out of the finished file. Never nil: readback is not
+        /// optional on this path.
+        public let framesDecodable: Int
+        public let outputSeconds: Double
+        public let outputFrameRate: Double
+        public let copySeconds: Double
+        public let bytes: Int
+        public let codec: String
+        public let colorPrimaries: String?
+        public let transferFunction: String?
+        public let yCbCrMatrix: String?
+        public let bitDepth: Int?
+
+        public var framesPerSecondCopied: Double {
+            copySeconds > 0 ? Double(samplesAppended) / copySeconds : 0
+        }
+        public var verified: Bool { framesDecodable == framesRequested }
+        public var verificationNote: String {
+            verified
+                ? "verified — \(framesDecodable) decodable frames equals \(framesRequested) requested (\(samplesAppended) samples stored, \(leadInSamples) of them GOP lead-in edited out)"
+                : "MISMATCH — \(framesRequested) requested, \(framesDecodable) decodable, \(framesRequested - framesDecodable) missing"
+        }
+    }
+
+    /// Copy `frames` out of `reader` into a new file with NO decode and NO
+    /// encode, and prove the count. See the type comment for what this closes.
+    ///
+    /// The output presents exactly `frames` — the GOP lead-in the container has
+    /// to carry is stored and edited out by the session start time. Timestamps
+    /// are the source's own; there is no retime on this path, because a retime
+    /// of a compressed stream would change what the samples mean.
+    public func passthrough(_ reader: VideoReader, frames: Range<Int>, to url: URL) async throws -> PassthroughReport {
+        guard !frames.isEmpty else { throw WalkVideoError.emptyFrameRange }
+        guard let hint = reader.formatDescription else {
+            throw WalkVideoError.writerRejectedSettings("passthrough: the source track has no format description")
+        }
+        try? FileManager.default.removeItem(at: url)
+
+        let writer = try AVAssetWriter(url: url, fileType: options.fileType)
+        // nil outputSettings IS the passthrough contract (AVAssetWriterInput.h:
+        // "A value of nil indicates that the receiver will pass through appended
+        // samples, doing no processing before they are written to the output").
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: hint)
+        // THE TIMESCALE IS THE SOURCE'S, NOT QUICKTIME'S DEFAULT OF 600.
+        // MEASURED 2026-09-25 without these two lines: the output track came
+        // back with time_base 1/600, every 1001/60000 s frame quantized to 10
+        // ticks with a periodic 11 to catch up, avg_frame_rate 72000/1201, and
+        // AVFoundation reading the file's frame rate as 59.88 against 59.94. The
+        // frames were all there and the count verified — the timing had been
+        // rewritten. A copy that keeps the bits and moves the clock is not a copy.
+        input.mediaTimeScale = reader.info.frameDuration.timescale
+        writer.movieTimeScale = reader.info.frameDuration.timescale
+        let receiver = writer.inputReceiver(for: input)
+
+        let start = reader.time(ofFrame: frames.lowerBound)
+        let end = reader.time(ofFrame: frames.upperBound)
+
+        let pass = try reader.passthroughPass(frames: frames)
+        defer { pass.cancel() }
+        try writer.start()
+        writer.startSession(atSourceTime: start)
+
+        var appended = 0, leadIn = 0, pastEnd = 0, seen = 0
+        var lastDTS = CMTime.negativeInfinity
+        let t0 = DispatchTime.now().uptimeNanoseconds
+
+        while let sample = try await pass.next() {
+            defer { seen += 1 }
+            if let drop = options.inducedLossForTesting, drop == seen { continue }
+            // Decode order is the storage requirement. A sample whose decode
+            // timestamp does not advance is appended out of order, and the
+            // writer will not tell you.
+            let dts = sample.decodeTimeStamp.isValid ? sample.decodeTimeStamp : sample.presentationTimeStamp
+            guard CMTimeCompare(dts, lastDTS) > 0 else {
+                receiver.finish()
+                await writer.finishWriting()
+                throw WalkVideoError.nonMonotonicTimestamp(sourceFrame: reader.frameIndex(of: sample.presentationTimeStamp))
+            }
+            lastDTS = dts
+            let pts = sample.presentationTimeStamp
+            if CMTimeCompare(pts, start) < 0 { leadIn += 1 }
+            if CMTimeCompare(pts, end) >= 0 { pastEnd += 1 }
+            // Suspends until the input is ready. Throws if the writer failed.
+            try await receiver.append(sample)
+            appended += 1
+        }
+        let copySeconds = Double(DispatchTime.now().uptimeNanoseconds - t0) / 1e9
+        writer.endSession(atSourceTime: end)
+        receiver.finish()
+        await writer.finishWriting()
+
+        if writer.status != .completed {
+            throw writer.error ?? WalkVideoError.writerRejectedSettings("writer status \(writer.status.rawValue)")
+        }
+
+        let bytes = ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int) ?? 0
+
+        // ---- READBACK, NOT OPTIONAL ----
+        let back = try await VideoReader(url: url)
+        let verify = try back.pass()
+        defer { verify.cancel() }
+        var decodable = 0
+        do {
+            while let _ = try await verify.next() { decodable += 1 }
+        } catch {
+            // A decoder that refuses the file is the same verdict as a short
+            // count, and it must not escape as a bare AVFoundation error that a
+            // caller could mistake for a transient read problem.
+            throw WalkVideoError.readbackFailed(requested: frames.count, decodedBeforeFailure: decodable,
+                                                url: url, underlying: "\(error)")
+        }
+
+        let report = PassthroughReport(
+            url: url, sourceFrames: frames, framesRequested: frames.count,
+            samplesAppended: appended, leadInSamples: leadIn, pastEndSamples: pastEnd,
+            markersSkipped: pass.markersSkipped, framesDecodable: decodable,
+            outputSeconds: back.info.seconds, outputFrameRate: back.info.fps,
+            copySeconds: copySeconds, bytes: bytes, codec: back.info.codec,
+            colorPrimaries: back.info.colorPrimaries, transferFunction: back.info.transferFunction,
+            yCbCrMatrix: back.info.yCbCrMatrix, bitDepth: back.info.bitDepth)
+
+        guard report.verified else {
+            throw WalkVideoError.frameCountMismatch(requested: frames.count, decodable: decodable, url: url)
         }
         return report
     }

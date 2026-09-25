@@ -98,9 +98,11 @@ folder the tests asserted on.
 ## Cutting
 
 Stream-copy (`-c copy`) whenever the pixels should survive — verify with matching
-frame hashes, which proves it byte-for-byte. **phot-o-MATIC cannot do this**: its
-passthrough path is open defect #721 and it re-encodes, and it never reads, writes
-or retimes **audio**, so its segments come out silent.
+frame hashes, which proves it byte-for-byte. phot-o-MATIC does this as of 0.9.0:
+`walk segments --passthrough` / `walk_segments` with `passthrough: true` copies
+the stored bitstream and fails the segment if the frames decodable on readback
+are not the frames requested (#721). It still never reads, writes or retimes
+**audio**, so its segments come out silent.
 
 Any pixel edit to a JPEG costs a generation. Match the original's chroma —
 checking `pix_fmt` first — or a 4:4:4 original re-encoded at 4:2:0 loses 3.5 dB

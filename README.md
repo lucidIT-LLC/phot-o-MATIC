@@ -144,7 +144,7 @@ walk_proof_sheet   path | paths, out_dir, frames_per_clip, cell_width,
                    placeholder_width, jpeg_quality, placeholders, recursive,
                    max_items
 walk_segments      path, handles | lead_seconds + tail_seconds, out_dir, fps,
-                   from_frame, to_frame, vision, sigma, floor
+                   from_frame, to_frame, vision, sigma, floor, passthrough
 walk_grade         input, output, look (neutral|dramatic), target_nits
 walk_contract      expect
 ```
@@ -451,7 +451,7 @@ make payload-check   # prove that assertion can fail (5 cases)
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 141 tests
+make test                     # 150 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
@@ -501,8 +501,16 @@ build system and `xcodebuild` of the app. `make` puts both build trees under
   replacement is a Metal kernel, which means Metal compilation inside SwiftPM;
   not attempted in 0.4.0. It is in `.github/deprecations-allowed.txt` with a
   reason and an owner, and CI fails on any deprecation that is not.
-- **Passthrough writing is not shipped.** Open defect task #721: 22 frames lost
-  with every success signal returning true.
+- **Passthrough writing ships as of 0.9.0, and #721 is closed as a miscount, not
+  a loss.** `walk segments --passthrough` / `walk_segments` `passthrough: true`
+  copies the stored bitstream. The 22 "lost" frames of 2026-09-12 were GOP
+  lead-in (the twenty samples before a mid-GOP start that the file must carry
+  to decode at all) plus marker buffers, counted as output and compared to the
+  frames presented. Measured 2026-09-25 on the same request, the file held
+  exactly the 100 frames asked for. The path now sets the writer session to the
+  requested range, appends in decode order, keeps the source timescale, reads
+  the file back, and throws `frameCountMismatch` on any difference — a test
+  induces a loss and requires the error.
 - **No audio.** Never read, retimed or written.
 - **The coaching verdict does not reach a photograph.** phot-o-MATIC measures stills and
   shows them in a sheet; it cannot judge one. Of the seven selectors a criteria

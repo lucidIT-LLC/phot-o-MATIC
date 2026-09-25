@@ -27,7 +27,7 @@ public enum Walk {
     // here rather than left as an unexplained gap, because an unexplained gap in
     // a version sequence is exactly the sort of thing a later session
     // "corrects."
-    public static let version = "0.8.0"
+    public static let version = "0.9.0"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is
@@ -88,6 +88,11 @@ public enum Walk {
         // The old reason said in terms that a spike was not enough; that
         // condition is what changed, not the measurement.
         "coreml.custom":         "0.5.7",  // CustomModel: compile a supplied .mlmodel at RUNTIME via MLModel.compileModel(at:), load it, run it over a frame through VNCoreMLModel; ships no model and names no subjects
+        // 0.9.0 — task #721 closes. The 22 "lost" frames were GOP lead-in
+        // counted as output; the file always held the frames asked for. The
+        // path now sets the session to the requested range, appends in decode
+        // order, reads the file back, and fails on any count mismatch.
+        "video.write.passthrough": "0.9.0",  // stored bitstream copied, no decode/encode; requested == decodable or WalkVideoError.frameCountMismatch
     ]
 
     /// What Walk explicitly does NOT do yet. Stated so a consumer cannot infer
@@ -98,7 +103,6 @@ public enum Walk {
     /// the why lives in `notImplementedReasons`, which a test requires to be
     /// complete.
     public static let notImplemented: [String] = [
-        "video.write.passthrough",
         "video.audio",
         "ingest.dump",
         "ingest.triage",
@@ -115,8 +119,6 @@ public enum Walk {
     /// where the edge actually is, which is how `ingest.dump` came to be read as
     /// a flat denial of folder handling.
     public static let notImplementedReasons: [String: String] = [
-        "video.write.passthrough":
-            "Open defect task #721. Every append() returns true, writer.status is completed, writer.error is nil, and the file is 22 frames short. Named here rather than left out, because a capability list silent about a known-broken path is the defect it exists to prevent. VideoWriter re-encodes instead.",
         "video.audio":
             "#495: audio is never read, retimed or written. A 60→30 retime with audio is a different problem and has not been attempted. Segments come out silent.",
         "ingest.dump":

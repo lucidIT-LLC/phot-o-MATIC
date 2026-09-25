@@ -1,5 +1,95 @@
 # Changelog
 
+## 0.9.0 — 2026-09-25 — task #721 closes: passthrough ships, and the 22 frames were never lost
+
+**`video.write.passthrough` moves from `notImplemented` to the contract.**
+`walk segments --passthrough` and `walk_segments` with `passthrough: true`
+copy the stored bitstream — no decode, no encode, no retime — and every file is
+read back before it is reported. Frames requested and frames decodable are the
+same number or the segment is `WalkVideoError.frameCountMismatch`; a decoder
+that refuses the file is `WalkVideoError.readbackFailed`. Neither is a warning.
+
+**WHAT #721 ACTUALLY WAS.** The 2026-09-12 spike (decision #495) appended 122
+samples, every append returned true, `writer.status` was `.completed`,
+`writer.error` was nil, and the file "held 100 decodable frames" — 22 frames
+lost, filed as the write-path instance of absence-indistinguishable-from-success.
+Re-measured 2026-09-25 with the identical request (clip 0012, frames
+2300..<2400), reader and file probed separately:
+
+- the passthrough reader delivers **120 media samples, frames 2280…2399**, plus
+  **4 zero-sample marker buffers** (one at the requested start carrying no data,
+  two with no timing at all, one `EmptyMedia`/`PermanentEmptyMedia` at the
+  requested end). 2300 is twenty frames into a 30-frame GOP — key frames at
+  2280 and 2310, measured with `ffprobe -skip_frame nokey` — and compressed
+  video decodes only from a sync sample, so the reader begins at 2280;
+- the finished file **held exactly the 100 frames asked for** (ffprobe
+  `nb_read_frames=100`, `nb_frames=120` stored, duration 1.668 s; AVAssetReader
+  readback 100).
+
+Nothing was lost. A count of samples appended — twenty of them GOP lead-in the
+file must carry for the requested frames to decode at all, two of them marker
+buffers — was compared to a count of frames presented, and they are not the same
+quantity. Cause (3), "passthrough cannot start mid-GOP", is not a defect; it is
+what a GOP is. The defect was in the instrument, and the file was right.
+
+**The path as shipped does what Apple's documentation says and nothing
+cleverer** (AVAssetWriterInput.h, AVAssetWriter.h, AVAssetReader.h in the
+macOS 27.0 SDK; developer.apple.com/documentation/avfoundation, read
+2026-09-25):
+
+- samples go to the writer in **decode order as delivered** — `append(_:)`:
+  "order and append them according to their decode timestamp". The spike's
+  cause (1) treated decode order as a defect and re-based timestamps on the
+  first sample, which was a marker;
+- `startSession(atSourceTime:)` is the **requested** start — "samples with
+  timestamps earlier than startTime will still be added to the output file but
+  will be edited out"; `endSession(atSourceTime:)` is the requested end;
+- `SampleBufferReceiver.append(_:)` "suspends until the input is ready for more
+  media data" — the documented replacement for the `readyForMoreMediaData`
+  loop, and the reason the tight-loop `NSInternalInconsistencyException` of
+  2026-09-12 cannot recur;
+- every append has returned before `finishWriting()` — "to guarantee that all
+  sample buffers are successfully written, ensure all calls to append have
+  returned before invoking this method";
+- `mediaTimeScale` and `movieTimeScale` are the **source's** (60000), not
+  QuickTime's default 600. MEASURED without them: `time_base=1/600`, every
+  1001/60000 s frame quantized to 10 ticks with a periodic 11 to catch up,
+  `avg_frame_rate=72000/1201`, AVFoundation reading 59.88 fps against 59.94.
+  The count verified and the clock had been rewritten. With them:
+  `time_base=1/60000`, `r_frame_rate=avg_frame_rate=60000/1001`.
+
+**Acceptance, as the task stated it, measured:**
+
+- clip 0012, 2300..<2400 (mid-GOP start): 100 requested, 100 decodable, 20
+  lead-in samples, 4 markers; source frame 2347 lands at output frame 47 with
+  a 10-bit Y mean of **439.098 — bit-exact**, against 439.079 through the
+  re-encode path;
+- clip 0011, 1234..<1361 (both ends mid-GOP): 127 requested, 127 decodable,
+  4 lead-in;
+- clip 0012, 2280..<2400 (key-frame aligned): 120 requested, 120 decodable,
+  0 lead-in;
+- the CLI on clip 0012 `--frames 2300-2400 --passthrough`: one 175-frame
+  segment, 199 samples stored, 24 lead-in, `nb_read_frames=175`, 54.3 MB,
+  **5,197 samples/s copied** against 86.6 fps for the re-encode on the same
+  machine;
+- **the control can fail:** `anInducedLossSurfacesAsAnErrorNotAShortFile` drops
+  one media sample from inside the requested range before it reaches the
+  writer. The writer reports success. The readback throws — measured as
+  AVFoundation −11821 "Cannot Decode", surfaced as `readbackFailed` with the
+  count decoded before the refusal. A file that reports success and holds less
+  than asked cannot leave `passthrough(_:frames:to:)`.
+
+**Eight tests added** in `Tests/WalkKitTests/PassthroughTests.swift`: five on
+the storm fixtures (skipped where the archive is absent, reported as skipped),
+three that run everywhere (the report cannot call a mismatch verified, the
+comparison is requested-vs-decodable and never appended-vs-decodable, the error
+names its numbers, the contract carries the capability). Contract version
+anchors re-aimed for 0.9.0.
+
+**Unchanged:** the re-encode path, its retime, its readback control, and every
+other capability. The `walk_segments` schema gains one optional boolean;
+existing calls behave exactly as before. Segments still carry no audio.
+
 ## 0.8.0 — 2026-09-25 — task #740 closes: the per-candidate `sigma` column is gone
 
 **THE WIRE CHANGED, DELIBERATELY, AND THIS IS THE NOTICE.** Per-candidate

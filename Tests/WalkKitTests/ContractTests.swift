@@ -150,10 +150,11 @@ import Testing
     // single off-by-one neighbour.
     #expect(Walk.check(expecting: "0.5.5").detail.contains("NEWER"))
     #expect(Walk.check(expecting: "0.5.8").detail.contains("NEWER"))
-    // the whole skipped 0.6 line still orders below the build (0.8.0 as of #740)
+    // the whole skipped 0.6 line still orders below the build (0.9.0 as of #721)
     #expect(Walk.check(expecting: "0.6.0").detail.contains("NEWER"))
     #expect(Walk.check(expecting: "0.6.9").detail.contains("NEWER"))
+    #expect(Walk.check(expecting: "0.7.1").detail.contains("NEWER"))   // 0.7.x is behind 0.9.0 now
+    #expect(Walk.check(expecting: "0.8.1").detail.contains("NEWER"))   // and so is 0.8.x, as of 0.9.0
     // and a consumer pinned above us is still told the build is older
-    #expect(Walk.check(expecting: "0.7.1").detail.contains("NEWER"))   // 0.7.x is behind 0.8.0 now
-    #expect(Walk.check(expecting: "0.8.1").detail.contains("OLDER"))
+    #expect(Walk.check(expecting: "0.9.1").detail.contains("OLDER"))
 }
