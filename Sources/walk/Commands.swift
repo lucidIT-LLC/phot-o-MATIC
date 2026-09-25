@@ -195,27 +195,26 @@ enum ScanCommand {
                      result.threshold * 100, result.statisticalThreshold * 100,
                      EventDetector.Options().sigmaMultiple, result.floorThreshold * 100,
                      result.boundBy.rawValue))
-        print(String(format: "robust sigma  %.6g of relative rise (MAD-derived)", result.robustSigma))
-        // TASK #740 DEFECT 1 — `sigma` IS NOT A SECOND MEASUREMENT AND THE TABLE
-        // PRESENTED IT AS ONE.
+        print(String(format: "robust sigma  %.6g of relative rise (MAD-derived). One figure per clip; per-candidate sigma", result.robustSigma))
+        print("              is not printed (#740): it was rise divided by this constant, the rise column rescaled.")
+        // TASK #740 DEFECT 1 — THE PER-CANDIDATE `sigma` COLUMN IS GONE FROM THE
+        // SHEET. 0.5.0 kept it and printed a four-line disclaimer over it; Data's
+        // 2026-09-14 review held that against the task's own acceptance ("derive
+        // sigma from the clip's actual robust dispersion or stop printing it")
+        // a disclaimer is neither, and the operator's 2026-09-25 direction was
+        // to fix it.
         //
-        // EventDetector: sigma = relativeRise / robustSigma, and robustSigma is
-        // ONE CONSTANT FOR THE WHOLE CLIP. So within a clip the sigma column is
-        // the rise column multiplied by 1/robustSigma — identical ranking, zero
-        // independent information. Reproduced on this repository's own README
-        // sample output, which is clip 0012 at robustSigma 2.508e-04:
-        //   frame 2334   rise +18.483%   sigma 737.0   18.483 x 39.87 = 737.1
-        //   frame 2388   rise  +3.689%   sigma 147.1    3.689 x 39.87 = 147.1
-        // Printed side by side, a reader sees a raw value corroborated by a
-        // robust statistic. It is one instrument reported twice. The column is
-        // kept because it is the only figure that compares ACROSS clips, where a
-        // bare percentage does not — but the output now says what it is rather
-        // than leaving a reviewer to derive it. `DetectorTests` asserts the
-        // identity so this statement can fail if the derivation ever changes.
-        print("              The sigma column below is rise DIVIDED BY that one constant. One constant for")
-        print("              the whole clip, so within this clip sigma is the rise column rescaled: the same")
-        print("              ranking, no second opinion. It is there to compare candidates across clips.")
-        print("              Two columns side by side read as two instruments agreeing. These are one twice.")
+        // Why removal and not re-derivation: robustSigma above ALREADY IS the
+        // clip's actual robust dispersion (1.4826 x MAD of the relative-rise
+        // series). Any per-candidate z-score is rise divided by that one
+        // per-clip constant, so within a clip it is the rise column rescaled —
+        // identical ranking, no independent information — BY CONSTRUCTION, not
+        // by a bug. No dispersion estimator can make that column independent.
+        // Reproduced 2026-09-25 on clip 0012: 13 of 13 rows at sigma/rise% =
+        // 39.87533, varying only in the seventh figure. The one honest figure is
+        // the clip-level dispersion, which stays on the line above; a reader
+        // comparing across clips divides rise by it. `DetectorTests` asserts the
+        // identity so this reasoning can fail if the engine ever changes.
         print("result        \(result.verdict)")
         guard !findings.isEmpty else {
             print("")
@@ -224,16 +223,16 @@ enum ScanCommand {
             return
         }
         print("")
-        print("  frame    timecode      time      luma      base     delta      rise      sigma   Ymean    Ymax  lightning  storm")
+        print("  frame    timecode      time      luma      base     delta      rise   Ymean    Ymax  lightning  storm")
         for f in findings {
             let e = f.event
             let y = f.sample?.yMean.map { String(format: "%8.3f", $0) } ?? "       -"
             let ym = f.sample?.yMax.map { String(format: "%6d%@", $0, (f.sample?.yClipped ?? false) ? "!" : " ") } ?? "      -"
             let light = f.labels.map { String(format: "%9.4f", $0.confidence("lightning")) } ?? "        -"
             let storm = f.labels.map { String(format: "%6.4f", $0.confidence("storm")) } ?? "     -"
-            print(String(format: "  %5d  %@  %8.3f  %.6f  %.6f  %+.6f  %+7.3f%%  %9.1f %@ %@ %@ %@",
+            print(String(format: "  %5d  %@  %8.3f  %.6f  %.6f  %+.6f  %+7.3f%% %@ %@ %@ %@",
                          e.index, reader.timecode(ofFrame: e.index), e.time,
-                         e.value, e.baseline, e.delta, e.relativeRise * 100, e.sigma,
+                         e.value, e.baseline, e.delta, e.relativeRise * 100,
                          y, ym, light, storm))
         }
         printCoaching(coaching)
@@ -332,7 +331,12 @@ enum ScanCommand {
         // no existing field changed name, type or shape, so a 0.5.0 consumer is
         // unaffected.
         s += "  \"relativeRiseMeasuredIn\": \"\(VideoReader.workingColorSpaceName), pinned. This is NOT the gamma-encoded 10-bit Y plane that yMean and yMax report, and no fixed factor converts between them.\",\n"
-        s += "  \"sigmaDerivation\": \"sigma = relativeRise / detector.robustSigma. robustSigma is one constant for the whole clip, so within a clip sigma is relativeRise rescaled: identical ranking, no independent information. It is for comparing across clips and is not a second measurement.\",\n"
+        // #740 DEFECT 1, closed in 0.8.0: the per-event `sigma` field is NOT
+        // emitted. It was relativeRise / detector.robustSigma — one constant per
+        // clip, so the rise column rescaled — and a machine reader took the two
+        // as corroborating. The key below names the removal so a consumer that
+        // looked for `sigma` finds a reason and the recipe rather than silence.
+        s += "  \"sigmaNotEmitted\": \"Per-event sigma was removed in 0.8.0 (task #740). It was relativeRise / detector.robustSigma, and robustSigma is one constant for the whole clip, so within a clip it was the rise column rescaled: identical ranking, no independent information, not a second measurement. detector.robustSigma is the clip's actual robust dispersion; divide relativeRise by it yourself to compare across clips.\",\n"
         s += String(format: "  \"scan\": { \"framesDecoded\": %d, \"wallSeconds\": %.6f, \"framesPerSecond\": %.3f, \"ciMillisecondsPerFrame\": %.4f, \"missingIndices\": %@ },\n",
                     series.decodedFrames, series.wallSeconds, series.framesPerSecond,
                     series.ciMillisecondsPerFrame,
@@ -347,8 +351,8 @@ enum ScanCommand {
             let e = f.event
             var o = "    { "
             o += "\"frame\": \(e.index), \"timecode\": \"\(reader.timecode(ofFrame: e.index))\", "
-            o += String(format: "\"time\": %.6f, \"ciLuma\": %.9f, \"baseline\": %.9f, \"delta\": %.9f, \"relativeRise\": %.9f, \"sigma\": %.4f, \"mergedFrames\": %d",
-                        e.time, e.value, e.baseline, e.delta, e.relativeRise, e.sigma, e.mergedFrames)
+            o += String(format: "\"time\": %.6f, \"ciLuma\": %.9f, \"baseline\": %.9f, \"delta\": %.9f, \"relativeRise\": %.9f, \"mergedFrames\": %d",
+                        e.time, e.value, e.baseline, e.delta, e.relativeRise, e.mergedFrames)
             if let y = f.sample?.yMean {
                 o += String(format: ", \"yMean\": %.6f", y)
                 o += ", \"yMax\": \(f.sample?.yMax.map(String.init) ?? "null")"

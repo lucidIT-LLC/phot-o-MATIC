@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations sheet-check verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -372,8 +372,15 @@ name-check:
 	./.github/check-product-name.py --selftest
 	./.github/check-product-name.py
 
+# Task #740 defect 1: per-candidate sigma stays off every output surface, and
+# the sigmaNotEmitted notice stays on the machine-readable ones. Source-level,
+# both directions, proven able to fail first.
+sheet-check:
+	./.github/check-sheet-shape.sh --selftest
+	./.github/check-sheet-shape.sh
+
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations test mcp-check contract gate-check name-check plugin-check payload-check payload-size
+verify: deprecations test mcp-check contract gate-check name-check sheet-check plugin-check payload-check payload-size
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"

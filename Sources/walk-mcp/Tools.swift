@@ -234,14 +234,17 @@ private func detectorJSON(_ d: EventDetector.Result) -> JSON {
         "candidatesBeforeMerge": .int(d.candidatesBeforeMerge),
         "scaleCollapsed": .bool(d.scaleCollapsed),
         "foundNothing": .bool(d.foundNothing),
-        // #740 DEFECT 1. sigma = relativeRise / robustSigma, and robustSigma is
-        // ONE CONSTANT for the clip — so per candidate the two fields carry the
-        // same ranking and the same information. A model reading `relativeRise`
-        // high AND `sigma` high concludes two measurements agree. They do not
-        // agree; one is the other rescaled. Reproduced on clip 0012: rise
-        // 18.483% / sigma 737.0 and rise 3.689% / sigma 147.1, both at exactly
-        // 1/2.508e-04. Stated here rather than left for a reader to derive.
-        "sigmaDerivation": .string("Each candidate's `sigma` is that candidate's `relativeRise` divided by this `robustSigma`. robustSigma is one constant for the whole clip, so within a clip `sigma` is `relativeRise` rescaled: identical ranking, no independent information, NOT a second measurement corroborating the first. It is useful only for comparing candidates across different clips."),
+        // #740 DEFECT 1, closed in 0.8.0. Per-candidate `sigma` is NOT emitted.
+        // It was relativeRise / robustSigma, and robustSigma is ONE CONSTANT for
+        // the clip, so the two fields carried the same ranking and the same
+        // information; a model reading both high concluded two measurements
+        // agreed. 0.5.0 kept the field under a disclosure string; the task's
+        // acceptance was "derive it from the clip's actual robust dispersion or
+        // stop printing it", and robustSigma already IS that dispersion, so the
+        // only remedy that changes anything is removal. Reproduced 2026-09-25 on
+        // clip 0012: 13/13 rows at sigma/rise% = 39.87533. The key below names
+        // the removal so a 0.5.x consumer that looked for `sigma` finds why.
+        "sigmaNotEmitted": .string("Per-candidate `sigma` was removed in 0.8.0 (task #740). It was that candidate's `relativeRise` divided by this `robustSigma`, and robustSigma is one constant for the whole clip, so within a clip it was `relativeRise` rescaled: identical ranking, no independent information, NOT a second measurement. `robustSigma` is the clip's actual robust dispersion (1.4826 x MAD of the relative-rise series); divide `relativeRise` by it yourself to compare candidates across clips."),
         "note": .string("threshold = max(statistical, floor). boundBy says which half decided, so a reader can tell whether the answer came from the clip or from the constant. scaleCollapsed means more than half the frames sat exactly on their local median, so the clip supplied no measurable noise scale. NOTE THE TWO SENSES OF THE WORD: the clip-level `verdict` string is the DETECTOR's — how many candidates cleared which threshold — and predates #513. The coaching verdict is in `coaching`. The detector field keeps its name and meaning so a 0.4.1 consumer is not broken."),
     ])
 }
@@ -256,7 +259,6 @@ private func candidateJSON(_ c: ClipScan.Candidate, exactY: Bool) -> JSON {
         "delta": .double(c.delta),
         "relativeRise": .double(c.relativeRise),
         "relativeRisePercent": .double(c.relativeRise * 100),
-        "sigma": .double(c.sigma),
         "mergedFrames": .int(c.mergedFrames),
         "yMean": .optional(c.yMean),
         "yMeanExact": .bool(exactY),
@@ -491,10 +493,10 @@ enum Tools {
             rise over a local median baseline measured in PINNED LINEAR BT.2020 \
             light (`scan.relativeRiseMeasuredIn` names the space, and a \
             gamma-encoded Y-plane measurement of the same event is a different, \
-            much smaller number that no fixed factor converts to), that same rise \
-            divided by the clip's one robust-sigma constant — a rescaling of the \
-            previous field and not a second measurement, see \
-            `detector.sigmaDerivation` — 10-bit Y-plane mean and max, Vision \
+            much smaller number that no fixed factor converts to), 10-bit \
+            Y-plane mean and max (no per-candidate `sigma`: it was the rise \
+            divided by one per-clip constant and read as a second measurement, \
+            removed in 0.8.0, see `detector.sigmaNotEmitted`), Vision \
             classifier confidences, and \
             a path to a written PNG of the frame. Reports the threshold it applied \
             and which half of it bound. "Nothing found" is returned as an answer, \

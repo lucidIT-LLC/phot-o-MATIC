@@ -222,9 +222,13 @@ private let fd6094 = CMTimeMake(value: 1001, timescale: 60000)
 
 // MARK: - task #740: the sigma column is not a second measurement
 
-/// TASK #740 DEFECT 1, MECHANIZED. The proof sheet now STATES in its own output
-/// that `sigma` is `relativeRise` divided by one per-clip constant, so the sheet
-/// makes a claim about the engine and that claim must be able to fail.
+/// TASK #740 DEFECT 1, MECHANIZED. 0.8.0 REMOVED per-candidate `sigma` from the
+/// sheet, the `--json` output and the MCP candidate object on the strength of
+/// this identity: the engine's `sigma` is `relativeRise` divided by one per-clip
+/// constant, so it was the rise column rescaled and could never be an
+/// independent measurement. The removal rests on a claim about the engine, and
+/// that claim must be able to fail. `.github/check-sheet-shape.sh` holds the
+/// other half — that no output surface prints the field again.
 ///
 /// The defect it records: rise and sigma were printed side by side, which reads
 /// as a raw value corroborated by a robust statistic. Within one clip it is the
@@ -234,9 +238,9 @@ private let fd6094 = CMTimeMake(value: 1001, timescale: 60000)
 ///   frame 2388   rise  +3.689%   sigma 147.1
 /// Both are rise x 39.87, and 39.87 is 1/2.508e-04.
 ///
-/// If someone later re-derives sigma from an independent dispersion — which is
-/// the other fix #740 sanctions — this test fails, and the sentence the sheet
-/// prints has to be rewritten with it. That is the point of it.
+/// If someone later re-derives sigma from something that is NOT one per-clip
+/// constant, this test fails, and the field may then have earned its way back
+/// onto the sheet. That is the point of it.
 @Test func sigmaIsRelativeRiseRescaledByOneConstantPerClip() {
     // Three events of DIFFERENT sizes, so a constant rise-to-sigma ratio is a
     // real finding about the derivation rather than an artifact of one point.

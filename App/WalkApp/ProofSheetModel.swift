@@ -16,7 +16,6 @@ struct Moment: Identifiable {
     let ciLuma: Double
     let baseline: Double
     let relativeRise: Double
-    let sigma: Double
     let yMean: Double?
     let yMax: Int?
     let yClipped: Bool
@@ -181,7 +180,7 @@ final class ProofSheetModel {
         let moments = scanned.candidates.map { c in
             Moment(clip: url, frame: c.frame, timecode: c.timecode, time: c.time,
                    ciLuma: c.ciLuma, baseline: c.baseline, relativeRise: c.relativeRise,
-                   sigma: c.sigma, yMean: c.yMean, yMax: c.yMax, yClipped: c.yClipped,
+                   yMean: c.yMean, yMax: c.yMax, yClipped: c.yClipped,
                    mergedFrames: c.mergedFrames,
                    labels: c.topLabels.map { ($0.identifier, $0.confidence) },
                    lightning: c.confidence("lightning") ?? 0,

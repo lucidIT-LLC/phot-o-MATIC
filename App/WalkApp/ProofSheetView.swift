@@ -321,9 +321,11 @@ private struct MomentCard: View {
                 // fixed number: it adds no information to this card and it reads
                 // as a second instrument agreeing with the first. A card at
                 // thumbnail scale has no room to explain a derivation, so the
-                // honest move is not to assert it here. It stays in the detail
-                // pane, where the derivation is stated next to it, and it is
-                // still in the JSON for cross-clip comparison.
+                // honest move is not to assert it here. 0.8.0 took it off the
+                // detail pane and the wire as well: the per-candidate figure is
+                // the rise rescaled by one per-clip constant and there is no
+                // derivation that makes it independent. The clip's robust
+                // dispersion itself is still reported by the engine.
                 HStack(spacing: 10) {
                     if let y = moment.yMean { metric("Y~", String(format: "%.1f", y)) }
                     if let m = moment.yMax {
@@ -380,7 +382,6 @@ private struct MomentDetail: View {
                     row("local baseline", String(format: "%.6f", moment.baseline))
                     row("delta", String(format: "%+.6f", moment.ciLuma - moment.baseline))
                     row("relative rise, linear BT.2020", String(format: "%+.3f%%", moment.relativeRise * 100))
-                    row("that rise ÷ the clip's robust σ", String(format: "%.1f", moment.sigma))
                     if let y = moment.yMean {
                         row("Y mean, 10-bit code (stride \(ProofSheetModel.appYPlaneStride))",
                             String(format: "%.2f", y))

@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.8.0 — 2026-09-25 — task #740 closes: the per-candidate `sigma` column is gone
+
+**THE WIRE CHANGED, DELIBERATELY, AND THIS IS THE NOTICE.** Per-candidate
+`sigma` is no longer emitted — not on the `walk scan` text sheet, not in
+`--json` events, not in the `walk_scan` / `walk_scan_folder` candidate object,
+not in the app's detail pane. Every other candidate field is unchanged.
+`detector.robustSigma` stays. The `sigmaDerivation` string that 0.5.0 added is
+replaced by `detector.sigmaNotEmitted` (and the `--json` top-level key of the
+same name), which states the removal and the recipe.
+
+**WHY REMOVAL AND NOT RE-DERIVATION.** Task #740's acceptance was binary:
+"derive sigma from the clip's actual robust dispersion or stop printing it."
+0.5.0 did a third thing — kept the column under a four-line disclaimer — and
+Data's 2026-09-14 review correctly held that an acceptance criterion quietly
+satisfied by a different remedy is the task's own defect class. The operator
+directed the fix on 2026-09-25. The first remedy is not available:
+`robustSigma` already *is* the clip's actual robust dispersion, 1.4826 × MAD of
+the relative-rise series, and any per-candidate z-score is rise divided by that
+one per-clip constant — the rise column rescaled, by construction, whatever
+estimator produces the constant. **Reproduced on clip 0012 before the change:
+13 of 13 candidates at `sigma / rise%` = 39.87533**, varying only in the seventh
+figure. Two columns that rank identically are one instrument printed twice, and
+a reader — human or model — took them as two agreeing. So the column goes and
+the one honest figure, the clip's dispersion, stays where it always was.
+
+**Criteria files are NOT broken.** `sigma` remains a rule selector in
+`Criteria.swift` and `ClipScan.Candidate` still carries the value internally,
+so a 0.5.x criteria set with a rule on `sigma` still loads and still fires
+(it was always a rule on rise). The README says so beside the selector list.
+The installed criteria set on the build host uses `relativeRisePercent`,
+`vision.*` and `yMax`; none reads `sigma`.
+
+**New gate: `make sheet-check`** (`.github/check-sheet-shape.sh`), in `verify`
+and CI. It asserts the field is absent from every emitter and that the
+`sigmaNotEmitted` notice is present, and proves both directions can fail under
+`--selftest` against planted fixtures. The engine-side identity test,
+`sigmaIsRelativeRiseRescaledByOneConstantPerClip`, is kept and its docstring
+now records that the removal rests on it.
+
+**The other three defects on #740 were closed earlier and are unchanged here:**
+units on `rise` named in every surface (0.5.0, aa22851 / 609441f / e12314e);
+`inlineImages.frames` states its order and the written PNGs were never
+mis-ordered; classifier confidence is a rank and never a gate. The owed
+`luminanceIsNotLightning` figures were re-measured off the engine in 609441f.
+
+`walk_contract` reports the same capability set as 0.7.0; nothing was added or
+removed from `Walk.capabilities` or `notImplemented`.
+
 ## 0.7.0 — 2026-09-14 — the product is **phot-o-MATIC**, and the pack moves out of the root
 
 **WALK WAS THE DEVELOPMENT NAME.** The product, the public mark and the

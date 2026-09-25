@@ -278,6 +278,14 @@ jobs:
       - name: "Served instructions state #513's doctrine"
         run: ./.github/check-doctrine.py .build/release/walk-mcp .build/release/walk
 
+      # Task #740 defect 1: the per-candidate sigma column was rise rescaled by
+      # one per-clip constant and was read as a second measurement. 0.8.0
+      # removed it; this keeps it removed, and proves the gate can fail first.
+      - name: Sheet-shape check can fail
+        run: ./.github/check-sheet-shape.sh --selftest
+      - name: "No per-candidate sigma on any output surface (#740)"
+        run: ./.github/check-sheet-shape.sh
+
       # THE INSTALL PATH, and it is here because its ABSENCE is what task #729
       # filed. MEASURED on the operator's host 2026-09-12: the installed `walk`
       # reported 0.3.0 while the installed `walk-mcp` reported 0.5.0, from one

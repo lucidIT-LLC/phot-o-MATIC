@@ -1,6 +1,6 @@
 {
   "name": "phot-o-matic",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "phot-o-MATIC — on-device footage triage for photographers. Scans video on Apple silicon and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
   "author": {
     "name": "LucidIT, LLC",
