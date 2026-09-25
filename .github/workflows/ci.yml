@@ -90,6 +90,19 @@ jobs:
           set -o pipefail
           swift test --build-system native 2>&1 | tee /tmp/test.log
 
+      # THE LOG IS THE PROOF, NOT THE EXIT CODE — task #750. A session once read
+      # a codesign-rejected `swift test` ("error: Build failed", zero tests run)
+      # as green, because it read `$?` after a pipe with no pipefail. The exit
+      # code is honest when read directly (re-measured 2026-09-25 against
+      # SwiftPM's source and under Xcode 27.2), but a check that trusts it is
+      # one dropped pipefail away from green-over-nothing. This step requires
+      # a positive test count in the log and refuses "Executed 0 tests", a
+      # missing summary line, or a build-failure marker — after proving it can.
+      - name: Zero-tests guard can fail
+        run: ./.github/check-tests-ran.sh --selftest
+      - name: "The test log proves tests ran (#750)"
+        run: ./.github/check-tests-ran.sh /tmp/test.log
+
       # THE README STATES A TEST COUNT, SO THE COUNT IS CHECKED. Same defect
       # class as everything else here: a number in prose that was true once.
       # It drifted three times inside 0.4.0 alone — 48, then 50, then 51 — and

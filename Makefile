@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations sheet-check verify
+.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations sheet-check tests-ran-check verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -67,8 +67,23 @@ release:
 # The limit is a gap BETWEEN DECODED FRAMES while a read pass is open, not a
 # test duration. The slowest legitimate test here runs 213 s and beats
 # continuously throughout.
+#
+# THE LOG IS THE PROOF, NOT THE EXIT CODE (task #750). MEASURED 2026-09-12: a
+# session read a codesign-rejected `swift test` ("error: Build failed", zero
+# tests run) as green. RE-MEASURED 2026-09-25 against SwiftPM's own source and
+# the same codesign rejection under Xcode 27.2: `swift test` exits 1 when its
+# status is read directly. The 0 came from reading `$?` after a pipe with no
+# pipefail, which is the exit status of the LAST command in the pipe. So this
+# target sets pipefail AND parses the log for a positive test count, and
+# refuses on "Executed 0 tests", a missing summary, or a build-failure marker.
+# `make tests-ran-check` proves the guard can fail; run it before trusting it.
 test:
-	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH)
+	@mkdir -p $(SCRATCH); set -o pipefail; \
+	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH) 2>&1 | tee $(SCRATCH)/test.log
+	./.github/check-tests-ran.sh $(SCRATCH)/test.log
+
+tests-ran-check:
+	./.github/check-tests-ran.sh --selftest
 
 contract: release
 	$(SCRATCH)/release/walk contract
@@ -316,10 +331,12 @@ xcode-build:
 		SYMROOT=$(XCODEOUT)/Products OBJROOT=$(XCODEOUT)/Intermediates
 
 xcode-test:
+	@mkdir -p $(XCODEOUT); set -o pipefail; \
 	WALK_TEST_WATCHDOG_SECONDS=120 xcodebuild test -workspace Walk.xcworkspace \
 		-scheme WalkKitTests -destination 'platform=macOS' \
 		-derivedDataPath $(XCODEOUT) \
-		SYMROOT=$(XCODEOUT)/Products OBJROOT=$(XCODEOUT)/Intermediates
+		SYMROOT=$(XCODEOUT)/Products OBJROOT=$(XCODEOUT)/Intermediates 2>&1 | tee $(XCODEOUT)/test.log
+	./.github/check-tests-ran.sh $(XCODEOUT)/test.log
 	@./.github/check-payload-size.sh
 
 # Every deprecation in the build, against the reasoned allowlist. Fails on a new
@@ -380,7 +397,7 @@ sheet-check:
 	./.github/check-sheet-shape.sh
 
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations test mcp-check contract gate-check name-check sheet-check plugin-check payload-check payload-size
+verify: deprecations tests-ran-check test mcp-check contract gate-check name-check sheet-check plugin-check payload-check payload-size
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"
