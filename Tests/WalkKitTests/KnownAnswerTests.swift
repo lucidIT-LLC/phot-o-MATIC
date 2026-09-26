@@ -337,7 +337,32 @@ struct KnownAnswerVideoTests {
         }
         // The point is that it STOPS, not merely that it reports. A whole-clip scan
         // of this material is about 30 s; anything under a second is a real stop.
-        #expect(elapsed < .seconds(2),
+        //
+        // RECALIBRATED 2026-09-26, task #764's residual finding (the same one that
+        // moved ReadExecutorTests.swift's canary from 2.0s to 8.0s). The original
+        // 2.0s bound was validated ALONE -- this test by itself, where cancellation
+        // reliably stops the scan in well under a second -- and that is not the
+        // load `make test` actually runs it under: the whole 150-test suite in
+        // parallel. Six full-suite runs under
+        // LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 measured this assertion missing
+        // twice (elapsed 2.03s and 2.69s), both within the first ~35% over the old
+        // bound, both against four clean runs the same batch. Five further runs of
+        // THIS TEST ALONE, same STRICT=1 setting, same scratch discipline, never
+        // came within 3x of the bound: 0.608s, 0.624s, 0.626s, 0.631s, 0.645s. The
+        // gap between "alone" and "full suite" is the tell -- FrameScanner's
+        // checkCancellation still runs every frame (Sources/WalkKit/FrameScanner.swift:90)
+        // and the scan still stops after the first frame `pass.next()` hands back
+        // post-cancel; what full-suite contention adds is delay in that one
+        // `await` returning, not a missed check. The real defect this test guards
+        // against has a different signature entirely: a decoder running to the end
+        // of this clip, which this material takes ~30s to do -- three orders of
+        // magnitude past anything measured here, in isolation or under load. A
+        // tight bound that flakes under legitimate full-suite contention is worse
+        // than a loose one: exactly the failure mode ReadExecutorTests.swift's own
+        // comment names. 8s keeps roughly 3x headroom over this batch's worst
+        // measured full-suite gap (2.69s) while staying two orders of magnitude
+        // under the real defect's signature (~30s, unbounded).
+        #expect(elapsed < .seconds(8),
                 "took \(elapsed) to stop after cancel — cancellation is being noticed too late to matter")
     }
 
