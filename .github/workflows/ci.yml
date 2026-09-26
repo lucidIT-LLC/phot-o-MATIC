@@ -417,6 +417,20 @@ jobs:
           ./.github/stage-binary.sh walk-mcp .build/release/walk-mcp "$PWD/bin"
           make plugin-check
 
+      # ---------------------------------------------------------------------
+      # SPIRIT GATE — rule #350 (decision #587), task #881. This is a
+      # SEPARATE gate from the #254 brand gate above (Brandy/SOP-006): rule
+      # #350 itself requires both to pass. Every plugin shipped from this
+      # marketplace is O-Matic-branded by definition and always gated, so
+      # this runs on every push/tag that is not a pull_request (no
+      # OMATIC_MCP_TOKEN secret reaches a fork PR, and nothing has shipped at
+      # that point anyway).
+      - name: Spirit Gate check (rule #350)
+        if: github.event_name != 'pull_request'
+        env:
+          OMATIC_MCP_TOKEN: ${{ secrets.OMATIC_MCP_TOKEN }}
+        run: node Tools/spirit-gate-check.mjs .
+
       # The tag must equal the version in source. This is the control that stops
       # a release being tagged v0.3.0 while the binary reports 0.2.0.
       - name: Tag matches Walk.version
