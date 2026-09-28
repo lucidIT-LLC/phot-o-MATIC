@@ -89,6 +89,11 @@ public struct ClipScan: Sendable {
         public let classifyMilliseconds: Double?
         /// Where the display PNG landed, if one was asked for and succeeded.
         public let thumbnail: URL?
+        /// Every per-candidate stage that was ASKED FOR and failed, with the
+        /// reason (task #1013 P3). Without it a classifier failure left
+        /// `confidences` nil, which is exactly what "classification was off"
+        /// looks like — a failure indistinguishable from a choice.
+        public let failures: [StageFailure]
 
         public func confidence(_ identifier: String) -> Double? { confidences?[identifier] }
 
@@ -102,7 +107,8 @@ public struct ClipScan: Sendable {
                     sigma: Double, mergedFrames: Int, yMean: Double?, yMax: Int?,
                     yClipped: Bool, confidences: [String: Double]?,
                     topLabels: [(identifier: String, confidence: Double)],
-                    classifyMilliseconds: Double?, thumbnail: URL?) {
+                    classifyMilliseconds: Double?, thumbnail: URL?,
+                    failures: [StageFailure] = []) {
             self.frame = frame; self.timecode = timecode; self.time = time
             self.ciLuma = ciLuma; self.baseline = baseline; self.delta = delta
             self.relativeRise = relativeRise; self.sigma = sigma
@@ -110,7 +116,63 @@ public struct ClipScan: Sendable {
             self.yClipped = yClipped; self.confidences = confidences
             self.topLabels = topLabels; self.classifyMilliseconds = classifyMilliseconds
             self.thumbnail = thumbnail
+            self.failures = failures
         }
+    }
+
+    /// A per-candidate stage that was requested and did not complete.
+    public struct StageFailure: Sendable, Equatable {
+        public enum Stage: String, Sendable {
+            /// The candidate frame could not be decoded, so neither the
+            /// classifier nor the thumbnail had anything to work on.
+            case decode
+            case classify
+            case thumbnail
+        }
+        public let stage: Stage
+        public let reason: String
+        public init(stage: Stage, reason: String) { self.stage = stage; self.reason = reason }
+    }
+
+    /// What the per-candidate pass produced for one frame.
+    public struct Probe: Sendable {
+        public let labels: Classifier.Result?
+        public let thumbnail: URL?
+        public let failures: [StageFailure]
+    }
+
+    /// Decode one candidate frame ONCE and hand it to the classifier and the
+    /// thumbnail writer, recording every requested stage that fails.
+    ///
+    /// ONE implementation, used by `run` and by the CLI's own scan path. The
+    /// CLI used to repeat this sequence with every step wrapped in `try?`
+    /// (task #1013 P3), so a decode or classifier failure printed as `-` —
+    /// the same mark as `--no-vision`.
+    public static func probe(_ reader: VideoReader, frame index: Int,
+                             classifier: Classifier?, thumbnailTo out: URL?,
+                             thumbnailMaxWidth: CGFloat = 640) async -> Probe {
+        guard classifier != nil || out != nil else {
+            return Probe(labels: nil, thumbnail: nil, failures: [])
+        }
+        let frame: Frame
+        do {
+            frame = try await reader.frame(at: index)
+        } catch {
+            return Probe(labels: nil, thumbnail: nil,
+                         failures: [StageFailure(stage: .decode, reason: "\(error)")])
+        }
+        var labels: Classifier.Result? = nil
+        var thumb: URL? = nil
+        var failures = [StageFailure]()
+        if let classifier {
+            do { labels = try await classifier.classify(frame) }
+            catch { failures.append(StageFailure(stage: .classify, reason: "\(error)")) }
+        }
+        if let out {
+            do { thumb = try frame.writeDisplayPNG(to: out, maxWidth: thumbnailMaxWidth) }
+            catch { failures.append(StageFailure(stage: .thumbnail, reason: "\(error)")) }
+        }
+        return Probe(labels: labels, thumbnail: thumb, failures: failures)
     }
 
     public struct Result: Sendable {
@@ -187,27 +249,18 @@ public struct ClipScan: Sendable {
 
         for event in detection.events {
             try Task.checkCancellation()
-            var confidences: [String: Double]? = nil
-            var top = [(identifier: String, confidence: Double)]()
-            var ms: Double? = nil
-            var thumb: URL? = nil
-
             // ONE decode of the candidate frame serves both the classifier and
             // the picture. Decoding it twice was the obvious shape and is 0.125 s
-            // of cold seek each time (#495).
-            if options.classify || options.thumbnailDirectory != nil,
-               let frame = try? await reader.frame(at: event.index) {
-                if options.classify, let r = try? await classifier.classify(frame) {
-                    confidences = r.requested
-                    top = r.top.map { (identifier: $0.identifier, confidence: $0.confidence) }
-                    ms = r.milliseconds
-                }
-                if let dir = options.thumbnailDirectory {
-                    let out = dir.appendingPathComponent(
-                        String(format: "%@_f%06d.png", stem, event.index))
-                    thumb = try? frame.writeDisplayPNG(to: out, maxWidth: options.thumbnailMaxWidth)
-                }
+            // of cold seek each time (#495). Failures are recorded, not dropped.
+            let out = options.thumbnailDirectory.map {
+                $0.appendingPathComponent(String(format: "%@_f%06d.png", stem, event.index))
             }
+            let probe = await probe(reader, frame: event.index,
+                                    classifier: options.classify ? classifier : nil,
+                                    thumbnailTo: out,
+                                    thumbnailMaxWidth: options.thumbnailMaxWidth)
+            let confidences = probe.labels?.requested
+            let top = probe.labels?.top.map { (identifier: $0.identifier, confidence: $0.confidence) } ?? []
 
             let sample = series.sample(at: event.index)
             candidates.append(Candidate(
@@ -217,8 +270,9 @@ public struct ClipScan: Sendable {
                 delta: event.delta, relativeRise: event.relativeRise, sigma: event.sigma,
                 mergedFrames: event.mergedFrames,
                 yMean: sample?.yMean, yMax: sample?.yMax, yClipped: sample?.yClipped ?? false,
-                confidences: confidences, topLabels: top, classifyMilliseconds: ms,
-                thumbnail: thumb))
+                confidences: confidences, topLabels: top,
+                classifyMilliseconds: probe.labels?.milliseconds,
+                thumbnail: probe.thumbnail, failures: probe.failures))
         }
 
         return Result(url: url, info: reader.info, requestedFrames: options.frames,
@@ -268,6 +322,9 @@ extension ClipScan {
                 s += " — \(empty) clip\(empty == 1 ? "" : "s") returned nothing, which is an answer and not a failure"
             }
             if !failures.isEmpty { s += "; \(failures.count) could not be read" }
+            if !found.unreadable.isEmpty {
+                s += "; \(found.unreadable.count) location\(found.unreadable.count == 1 ? "" : "s") could not be listed — see unreadable for why"
+            }
             return s
         }
     }

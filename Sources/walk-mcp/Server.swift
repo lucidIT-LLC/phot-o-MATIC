@@ -126,7 +126,11 @@ photograph, and ranking by a number is how the first scan of the storm clip lost
 two real strikes.
 
 Start with walk_contract to learn this build's version and exactly which \
-capabilities are present and absent. Every absent capability carries a reason.
+capabilities are present and absent. Every absent capability carries a reason. \
+walk_contract is also where the band shapes, the lessons and the criteria note \
+are served, once; a scan carries only the identity of the criteria that judged \
+it. Show a photographer a verdict's `label`, never its `band`, which is an \
+internal key.
 
 walk_scan_folder is the tool for "go walk this folder". walk_scan is one clip. \
 Both return, per candidate frame: the frame index, timecode, seconds, the \

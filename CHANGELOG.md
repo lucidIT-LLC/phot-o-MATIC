@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.10.0 — 2026-09-28 — a scan carries the criteria's identity, not its reference; failures carry reasons
+
+Tasks #765 and #773, and Smith's #1013 audit of this repository (P1–P5). Every
+finding below is labelled measured or inferred.
+
+**#765 — the coaching reference moves to `walk_contract`.** Measured on a real
+`walk_scan` of storm clip 0008 (DJI_20260912051348_0008_D.MP4, `thumbnails:
+false`) with the installed criteria: the top-level `coach` block was 2,259 bytes
+of the structured result — `bands` 605, `lessons` 1,126, `note` 162,
+`forwardQuestion` 27, `criteria` 251 — identical on every call. A scan now
+carries `coach.available`, the criteria identity (`version`, `walk`, `owner`,
+`established`, `source`, `rules`) and one `reference` line pointing at
+`walk_contract`, which alone serves the band shapes, the lessons, the forward
+question and the criteria header's `note`. Per-verdict fields are unchanged.
+Measured: the criteria header `note` itself was already absent from criteria
+1.3.0 (#770 removed it from the shipped file on 2026-09-14); the code still
+emitted `"note": null` on every scan and would have echoed any note a set
+carried. It is now emitted on `walk_contract` only. The byte counts before and
+after are in task #765. The instructions string and both scan tool descriptions
+say where the reference lives, and tell hosts to show a verdict's `label`, never
+its `band` key (#771, merged into #765).
+
+**#773 — three coaching lines rewritten as craft, criteria 1.3.0 → 1.4.0.**
+`brand_gate_254.py` flagged three outcome promises (measured: 3 N6 findings on
+the installed file). Each now says what the frame does and why, in Andy's terms:
+- thin-distant-bolt-clean-sky.reason: "Shape without brightness is what makes a
+  storm frame read, and it is the hardest to get."
+- real-strike-that-lifted-the-whole-scene.nextFlight: "…the thin ones carry the
+  shape the bright ones lose."
+- bright-but-not-lightning.nextFlight: "…what is left to review is more likely
+  the sky changing than the camera."
+The three waivers are removed; the gate reads zero findings with zero waivers.
+Brandy owns this copy and is asked to read the three lines. `criteria.walk` →
+0.10.0 on the #736 re-attestation basis: `Criteria.swift` and `Coaching.swift`
+are unchanged in this release (measured, `git diff`), so every selector, band
+and verdict shape the nine rules were written against is unchanged.
+
+**#1013 P1 — one directory traversal.** `ClipFinder.find` and
+`MediaFinder.find` each carried a copy of the same walk. Both now classify what
+`FolderWalk.list` returns. A test asserts the two finders agree, flat and
+recursive.
+
+**#1013 P2 — an unreadable folder is not an empty one.** Both copies read a
+directory through `(try? contentsOfDirectory(...)) ?? []` and ran the recursive
+enumerator with no `errorHandler`, so a folder the process could not read came
+back as "searched, no files in them at all". `FolderWalk` records every failure
+with its reason ("permission denied — …" for EACCES/EPERM, else the POSIX or
+system description), the recursive walk continues past it, and `unreadable`
+appears on `ClipFinder.Found`, `MediaFinder.Found`, `walk_scan_folder`'s and
+`walk_proof_sheet`'s `search`, the proof-sheet manifest, `walk proofsheet`'s
+text output, and every finder, folder and sheet verdict. Proved able to fail:
+with the recording swallowed again, the two new unreadable-folder tests fail
+with 10 issues (measured).
+
+**#1013 P3 — a failed stage is recorded, not dropped.** `ClipScan.run` and the
+CLI's `walk scan` wrapped decode, classify and thumbnail in `try?`, so a
+classifier failure produced `vision: null` — the same as `vision: false`. Both
+now go through one `ClipScan.probe`, and each requested stage that fails is kept
+as `failures: [{stage, reason}]` on every candidate (MCP), on every event
+(`walk scan --json`), and as `FAILED` plus a reason line in the text table.
+
+**#1013 P4 — every license statement says what LICENSE says.** LICENSE grants
+no license and records BUSL-1.1 as rejected; the Claude and Codex plugin
+manifests and the marketplace entry said BUSL-1.1, and the README and the app's
+copyright string said MIT (measured). They now declare
+`LicenseRef-lucidIT-no-license-granted` (an SPDX `LicenseRef-`; SPDX has no
+identifier for "none granted") and "All rights reserved". No license was chosen;
+task #573 owns that. `.github/check-license.sh` holds every copy to LICENSE and
+proves it can fail (`--selftest`: four planted contradictions each refused); run
+against the 0.9.0 tree it reports all five measured contradictions.
+
+**#1013 P5 — no estate default URL.** `Tools/spirit-gate-check.mjs` fell back
+to one operator's tailnet server when `OMATIC_MCP_URL` was unset. It now refuses
+by name, as the agency, firm and studio copies already do; CI passes the URL
+from a repository variable.
+
 ## 0.9.0 — 2026-09-25 — task #721 closes: passthrough ships, and the 22 frames were never lost
 
 **`video.write.passthrough` moves from `notImplemented` to the contract.**

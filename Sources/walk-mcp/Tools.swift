@@ -279,6 +279,12 @@ private func candidateJSON(_ c: ClipScan.Candidate, exactY: Bool) -> JSON {
         o["visionTop"] = .null
         o["visionMilliseconds"] = .null
     }
+    // #1013 P3: a stage that was asked for and failed says so, with its reason.
+    // Without this, `vision: null` from a classifier failure read exactly like
+    // `vision: false`. Always present, empty when nothing failed.
+    o["failures"] = .array(c.failures.map {
+        .object(["stage": .string($0.stage.rawValue), "reason": .string($0.reason)])
+    })
     return .object(o)
 }
 
@@ -314,9 +320,16 @@ private func selectCandidates(_ all: [ClipScan.Candidate], limit: Int)
                        : "largest luminance rise (classification was off)")
 }
 
+/// Locations a finder could not read, each with its reason (task #1013 P2).
+private func unreadableJSON(_ u: [FolderWalk.Unreadable]) -> JSON {
+    .array(u.map { .object(["path": .string($0.url.path), "reason": .string($0.reason)]) })
+}
+
 // MARK: - the coaching verdict (#513)
 
-/// The band SHAPE, stated once per response whether or not a verdict rendered.
+/// The band SHAPE, stated once — on walk_contract — whether or not a verdict
+/// rendered. (Until task #765 it rode on every scan response too; a scan now
+/// points here instead of repeating it.)
 ///
 /// A host that only ever sees `available: false` must still be able to learn
 /// what Walk's output IS — #513 makes the bands the product, and an absent
@@ -341,29 +354,57 @@ private func lessonsJSON(_ lessons: [Coaching.Lesson]) -> JSON {
     })
 }
 
+/// How much of the coaching reference a response carries.
+///
+/// TASK #765, MEASURED. Every walk_scan / walk_scan_folder response used to carry
+/// the whole reference: the band shape with its promises, every lesson, the
+/// forward question and the criteria header's `note`. All of it is byte-identical
+/// on every call, and on a one-clip storm scan it was 2,259 of the response's
+/// bytes before any verdict. A tool that is expensive to call teaches its caller
+/// to route around it — to the CLI — and then the MCP surface, the one that
+/// ships, is the one that goes untested.
+///
+/// So a scan carries the IDENTITY of what judged it (version, walk, owner,
+/// established, source, rule count) and walk_contract carries the reference,
+/// once. The per-verdict fields are unchanged.
+private enum CoachDetail {
+    /// walk_contract: the identity plus the full reference.
+    case reference
+    /// walk_scan / walk_scan_folder: the identity, and a pointer to the reference.
+    case identity
+}
+
 /// The criteria state, once per response rather than once per clip: whether a
 /// verdict can be rendered at all, and if not, why and where Walk looked.
-private func coachStateJSON(_ coach: Coaching.Coach) -> JSON {
+private func coachStateJSON(_ coach: Coaching.Coach, detail: CoachDetail = .identity) -> JSON {
     var o: [String: JSON] = [
         "available": .bool(coach.isReady),
-        "forwardQuestion": .string(Coaching.forwardQuestion),
-        "bands": bandShapeJSON(),
-        "lessons": lessonsJSON(Coaching.lessons),
     ]
+    switch detail {
+    case .reference:
+        o["forwardQuestion"] = .string(Coaching.forwardQuestion)
+        o["bands"] = bandShapeJSON()
+        o["lessons"] = lessonsJSON(Coaching.lessons)
+    case .identity:
+        o["reference"] = .string("The band shapes, the lessons, the forward question and the criteria note are served once by walk_contract (coach.*), not repeated on every scan. Present each verdict's `label` to a photographer; `band` is an internal key.")
+    }
     if let reason = coach.unavailableReason {
         o["reason"] = .string(reason)
         o["searched"] = .array((coach.resolution?.searched ?? []).map { .string($0) })
         o["note"] = .string("coaching.available is false, so no band was assigned to anything. The candidates below are measured and unjudged. Do not present a verdict phot-o-MATIC did not render.")
     } else if let c = coach.criteria {
-        o["criteria"] = .object([
+        var identity: [String: JSON] = [
             "version": .string(c.header.version),
             "walk": .string(c.header.walk),
             "owner": .string(c.header.owner),
             "established": .string(c.header.established),
             "source": .string(c.source),
             "rules": .int(c.rules.count),
-            "note": .optional(c.header.note),
-        ])
+        ]
+        // The criteria header's `note` is reference material — once measured at
+        // roughly 2,800 words — so it rides on walk_contract only (#765).
+        if detail == .reference { identity["note"] = .optional(c.header.note) }
+        o["criteria"] = .object(identity)
         o["note"] = .string("Each verdict names the rule that fired and the decision that established it, with the measurements it read underneath. The numbers are evidence, not the answer.")
     }
     return .object(o)
@@ -505,7 +546,9 @@ enum Tools {
             lesson (#513) — from the criteria file that carries Andy's judgment. \
             No criteria ship with Walk, so read `coach.available`: when it is \
             false the result says why, the candidates are measured and unjudged, \
-            and no band has been assigned to anything.
+            and no band has been assigned to anything. The band shapes, lessons \
+            and criteria note are in walk_contract; a scan carries only the \
+            criteria's identity (version, walk, owner, established, source, rules).
             """,
         inputSchema: schema(scanProperties.merging([
             "path": str("Absolute path to the video file."),
@@ -575,7 +618,8 @@ enum Tools {
             This enumerates and scans. It does NOT rank a mixed folder by interest \
             — see ingest.dump in walk_contract for why. Each clip also carries the \
             coaching verdict (#513) when a criteria file is installed; `coach` at \
-            the top level says whether one was, and why not when it was not.
+            the top level says whether one was, and why not when it was not. The \
+            band shapes, lessons and criteria note are in walk_contract.
             """,
         inputSchema: schema(scanProperties.merging([
             "path": str("Absolute path to a folder, or to a single video file."),
@@ -621,6 +665,9 @@ enum Tools {
                         "foldersSearched": .array(folder.found.directoriesSearched.map { .string($0.path) }),
                         "clipsFound": .int(folder.found.clips.count),
                         "skippedNonVideo": .array(folder.found.skipped.map { .string($0.lastPathComponent) }),
+                        // #1013 P2: a folder that could not be read is named with
+                        // its reason, never reported as an empty one.
+                        "unreadable": unreadableJSON(folder.found.unreadable),
                         "videoExtensions": .array(ClipFinder.videoExtensions.sorted().map { .string($0) }),
                         "nothingToScan": .bool(folder.found.foundNothing),
                         "verdict": .string(folder.found.verdict),
@@ -769,6 +816,7 @@ enum Tools {
                             .object(["name": .string($0.url.lastPathComponent),
                                      "reason": .string($0.reason)])
                         }),
+                        "unreadable": unreadableJSON(sheet.found.unreadable),
                         "nothingToSheet": .bool(sheet.found.foundNothing),
                     ]),
                     "timings": .object([
@@ -1107,7 +1155,7 @@ enum Tools {
                 // app.proofSheet was declared with no statement that the sheet
                 // does not judge — absence indistinguishable from success, in
                 // the one surface built to prevent that.
-                "coach": coachStateJSON(Coaching.Coach()),
+                "coach": coachStateJSON(Coaching.Coach(), detail: .reference),
                 "note": .string("capabilities and notImplemented are disjoint, and a test fails if they are not. Every notImplemented entry must carry a reason, and a test fails if one does not. coach reports whether a coaching verdict can be rendered on this host right now, which is a different question from whether this build supports one."),
             ]
             if let expect = a["expect"]?.stringValue {

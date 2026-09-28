@@ -26,6 +26,8 @@ struct Finding {
     let event: EventDetector.Event
     let sample: LumaSample?
     let labels: Classifier.Result?
+    /// Stages asked for and failed, with the reason (task #1013 P3).
+    var failures: [ClipScan.StageFailure] = []
 }
 
 // MARK: - walk scan
@@ -104,13 +106,14 @@ enum ScanCommand {
             var findings = [Finding]()
             let classifier = Classifier()
             for e in result.events {
-                var labels: Classifier.Result? = nil
-                if !a.noVision {
-                    if let frame = try? await reader.frame(at: e.index) {
-                        labels = try? await classifier.classify(frame)
-                    }
-                }
-                findings.append(Finding(event: e, sample: series.sample(at: e.index), labels: labels))
+                // THROUGH ClipScan.probe, the one per-candidate pass, so a decode
+                // or classifier failure is RECORDED with its reason instead of
+                // printing the same `-` as --no-vision (task #1013 P3).
+                let probe = await ClipScan.probe(reader, frame: e.index,
+                                                 classifier: a.noVision ? nil : classifier,
+                                                 thumbnailTo: nil)
+                findings.append(Finding(event: e, sample: series.sample(at: e.index),
+                                        labels: probe.labels, failures: probe.failures))
             }
 
             // ONE coach, built from the same arguments, used by both printers.
@@ -145,7 +148,8 @@ enum ScanCommand {
             // rule reading a confidence must not fire on a false zero.
             confidences: f.labels?.requested,
             topLabels: f.labels?.top.map { (identifier: $0.identifier, confidence: $0.confidence) } ?? [],
-            classifyMilliseconds: f.labels?.milliseconds, thumbnail: nil)
+            classifyMilliseconds: f.labels?.milliseconds, thumbnail: nil,
+            failures: f.failures)
     }
 
     static func printHeader(_ info: VideoInfo, reader: VideoReader) {
@@ -228,12 +232,17 @@ enum ScanCommand {
             let e = f.event
             let y = f.sample?.yMean.map { String(format: "%8.3f", $0) } ?? "       -"
             let ym = f.sample?.yMax.map { String(format: "%6d%@", $0, (f.sample?.yClipped ?? false) ? "!" : " ") } ?? "      -"
-            let light = f.labels.map { String(format: "%9.4f", $0.confidence("lightning")) } ?? "        -"
-            let storm = f.labels.map { String(format: "%6.4f", $0.confidence("storm")) } ?? "     -"
+            // FAILED, not `-`: `-` means vision was not asked for (#1013 P3).
+            let failed = !f.failures.isEmpty
+            let light = f.labels.map { String(format: "%9.4f", $0.confidence("lightning")) } ?? (failed ? "   FAILED" : "        -")
+            let storm = f.labels.map { String(format: "%6.4f", $0.confidence("storm")) } ?? (failed ? "FAILED" : "     -")
             print(String(format: "  %5d  %@  %8.3f  %.6f  %.6f  %+.6f  %+7.3f%% %@ %@ %@ %@",
                          e.index, reader.timecode(ofFrame: e.index), e.time,
                          e.value, e.baseline, e.delta, e.relativeRise * 100,
                          y, ym, light, storm))
+            for failure in f.failures {
+                print("         \(failure.stage.rawValue) failed at frame \(e.index): \(failure.reason)")
+            }
         }
         printCoaching(coaching)
     }
@@ -364,6 +373,9 @@ enum ScanCommand {
                 o += ", \"top\": [" + l.top.map { String(format: "{\"identifier\":\"%@\",\"confidence\":%.6f}", $0.identifier, $0.confidence) }.joined(separator: ",") + "]"
                 o += String(format: ", \"milliseconds\": %.3f }", l.milliseconds)
             } else { o += ", \"vision\": null" }
+            o += ", \"failures\": [" + f.failures.map {
+                "{\"stage\":\"\($0.stage.rawValue)\",\"reason\":\"\(jsonEscape($0.reason))\"}"
+            }.joined(separator: ",") + "]"
             return o + " }"
         }.joined(separator: ",\n")
         s += "\n  ],\n"
@@ -652,6 +664,9 @@ enum SheetCommand {
                          sheet.sharpSeconds, sheet.totalSeconds))
             if !sheet.found.skipped.isEmpty {
                 print("skipped       \(sheet.found.skipped.count) file(s), each with a reason in the manifest")
+            }
+            for u in sheet.found.unreadable {
+                print("UNREADABLE    \(u.url.path) — \(u.reason)")
             }
             print("")
             print("  item                                      kind   cells  dims          fps     dur      shutter")

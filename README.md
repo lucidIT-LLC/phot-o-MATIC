@@ -451,7 +451,7 @@ make payload-check   # prove that assertion can fail (5 cases)
 
 ```
 swift build -c release        # the library, the CLI and the MCP server
-make test                     # 150 tests
+make test                     # 157 tests
 make mcp-check                # both MCP protocol eras, refusals required
 make deprecations             # the deprecation inventory against its allowlist
 make app                      # the SwiftUI app (needs Xcode)
@@ -593,4 +593,10 @@ reported. The changelog says which, every time.
 
 ## License
 
-MIT © lucidIT LLC
+Copyright (c) 2026 lucidIT, LLC. All rights reserved. **No license is granted** —
+see [LICENSE](LICENSE). The final license is an open decision (factory task #573),
+and every manifest says the same thing as LICENSE until it is made: the plugin and
+marketplace manifests declare `LicenseRef-lucidIT-no-license-granted` (an SPDX
+`LicenseRef-`, because SPDX has no identifier for "none granted"), and
+`make license-check` fails if any of them, this section, or the app's copyright
+string names a license LICENSE does not grant.

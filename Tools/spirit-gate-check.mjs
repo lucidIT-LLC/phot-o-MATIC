@@ -35,9 +35,15 @@
 // version string, so an edit that swaps content of the same length still
 // requires a fresh review.
 //
-// Usage: node scripts/spirit-gate-check.mjs <marketplace-root>
-// Env:   OMATIC_MCP_URL   (default https://stallion.blue-triggerfish.ts.net:8439/mcp)
-//        OMATIC_MCP_TOKEN (required -- a repo secret, never printed or logged)
+// NO ESTATE DEFAULT (Smith #1013 P5, measured 2026-09-28). This line used to
+// fall back to one operator's tailnet server URL when OMATIC_MCP_URL was unset.
+// A default URL in a shipped script is one private network written into every
+// copy; the sibling packs (agency, firm, studio) already removed theirs. The
+// URL now comes only from the environment, and its absence refuses by name.
+//
+// Usage: node Tools/spirit-gate-check.mjs <marketplace-root>
+// Env:   OMATIC_MCP_URL   (required -- this host's o-MATIC Server MCP endpoint)
+//        OMATIC_MCP_TOKEN (required -- a secret, never printed or logged)
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -46,17 +52,17 @@ import { createHash } from "node:crypto";
 const root = process.argv[2];
 if (!root) { console.error("usage: spirit-gate-check.mjs <marketplace-root>"); process.exit(2); }
 
-const MCP_URL = process.env.OMATIC_MCP_URL || "https://stallion.blue-triggerfish.ts.net:8439/mcp";
+const MCP_URL = process.env.OMATIC_MCP_URL;
 const TOKEN = process.env.OMATIC_MCP_TOKEN;
 
 let fails = 0;
 const FAIL = (m) => { console.log(`  FAIL  ${m}`); fails++; };
 const OK = (m) => { console.log(`  ok    ${m}`); };
 
-if (!TOKEN) {
-  FAIL("OMATIC_MCP_TOKEN is not set -- cannot reach the o-MATIC Server to check the " +
-       "Spirit Gate (rule #350). Add it as a repository secret; see docs/DEPLOY.md in " +
-       "o-matic-server for how the token is minted.");
+if (!TOKEN || !MCP_URL) {
+  FAIL("OMATIC_MCP_URL and OMATIC_MCP_TOKEN must both be set -- cannot reach the " +
+       "o-MATIC Server to check the Spirit Gate (rule #350). There is no default URL " +
+       "on purpose. See docs/DEPLOY.md in o-matic-server for how the token is minted.");
   process.exit(1);
 }
 

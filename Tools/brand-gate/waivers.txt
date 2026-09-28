@@ -11,27 +11,22 @@
 # reason to add a line here.
 #
 # ---------------------------------------------------------------------------
-# WAIVED: the three outcome-promise lines. Gate owner Brandy, NOT Carver.
+# RESOLVED 2026-09-28, task #773 — the three N6 outcome-promise lines were
+# REWRITTEN, not waived, and their waivers are removed (a waiver that matches
+# nothing fails the gate, by design).
 #
-# Brandy's gate brand.brand_messaging id 105 CLASS 4 reads "PASS, unqualified
-# ... every line craft rather than claim", which is a ruling by the owner of
-# #254 on exactly these three strings. Smith's adversarial review dissents and
-# argues for PASS WITH CHANGES; that dispute is open as task #773 and is routed
-# to Brandy. Task #770 additionally states that "the 9 reason/nextFlight strings
-# PASS unchanged and MUST NOT BE TOUCHED."
-#
-# So Carver is doubly barred from fixing these: the owner has ruled them
-# acceptable and the remediation task forbids the edit. They are waived on her
-# standing verdict and they stay VISIBLE in every gate run, which is the point —
-# if #773 changes the verdict, these three lines are already enumerated.
-#
-# Corrected wording for all three exists and is green:
-# Tools/brand-gate/fixtures/P2-clean-n6-corrected.json
-# ---------------------------------------------------------------------------
-N6_OUTCOME_PROMISE | thin-distant-bolt-clean-sky.reason | the most saleable storm frame there is | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
-N6_OUTCOME_PROMISE | real-strike-that-lifted-the-whole-scene.nextFlight | you will sell | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
-N6_OUTCOME_PROMISE | bright-but-not-lightning.nextFlight | lose nothing | Brandy gate brand.brand_messaging id 105 CLASS 4 (PASS unqualified); disputed as task #773, routed to Brandy; task #770 forbids Carver editing the 9 reason/nextFlight strings
-
+# They were waived on Brandy's gate id 105 CLASS 4 verdict, with task #770
+# forbidding Carver the edit. #770 closed 2026-09-14; on 2026-09-28 the operator
+# directed the rewrite through task #773 as craft statements, minimal and literal
+# to the craft each rule already describes, with Brandy to read the three lines:
+#   thin-distant-bolt-clean-sky.reason — "the most saleable storm frame there
+#     is" -> "what makes a storm frame read, and it is the hardest to get"
+#   real-strike-that-lifted-the-whole-scene.nextFlight — "the thin ones are the
+#     ones you will sell" -> "the thin ones carry the shape the bright ones lose"
+#   bright-but-not-lightning.nextFlight — "you will cut your review pile
+#     substantially and lose nothing" -> "what is left to review is more likely
+#     the sky changing than the camera"
+# Criteria 1.3.0 -> 1.4.0. The gate now reads zero findings with zero waivers.
 # ---------------------------------------------------------------------------
 # RESOLVED 2026-09-13, AND NOTHING IS WAIVED HERE — the nine `origin` findings
 # (6 x N1 "Pixel", 3 x N3 "skill 2.5.0") were FIXED, not excused.
@@ -58,5 +53,5 @@ N6_OUTCOME_PROMISE | bright-but-not-lightning.nextFlight | lose nothing | Brandy
 # extracted before and after and compared identical before anything was written.
 # 6 of 9 origins changed. Gate: 9 unwaived -> 0.
 #
-# The three N6 lines above remain the ONLY waived findings.
+# Nothing is waived in this file as of 2026-09-28.
 # ---------------------------------------------------------------------------

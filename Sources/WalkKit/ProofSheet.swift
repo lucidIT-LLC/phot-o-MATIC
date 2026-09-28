@@ -165,6 +165,12 @@ public enum ProofSheet {
             if failedCells > 0 { s += ", \(failedCells) could not be decoded" }
             let unreadable = items.filter { $0.error != nil }.count
             if unreadable > 0 { s += "; \(unreadable) item\(unreadable == 1 ? "" : "s") could not be read at all" }
+            // A folder that could not be listed is not an item, so it would not
+            // show up above — and an unread folder is exactly what must not be
+            // silent (task #1013 P2).
+            if !found.unreadable.isEmpty {
+                s += "; \(found.unreadable.count) location\(found.unreadable.count == 1 ? "" : "s") could not be read — see unreadable for why"
+            }
             return s
         }
     }
@@ -659,6 +665,7 @@ public enum ProofSheet {
                 "videoExtensions": ClipFinder.videoExtensions.sorted(),
                 "stillExtensions": MediaFinder.stillExtensions.sorted(),
                 "skipped": found.skipped.map { ["name": $0.url.lastPathComponent, "reason": $0.reason] },
+                "unreadable": found.unreadable.map { ["path": $0.url.path, "reason": $0.reason] },
             ],
             "sampling": [
                 "rule": "\(options.framesPerClip) frames per clip, evenly spaced across the whole duration, each centered in its own slice — so no sample is frame 0, where a drone is still settling, and the last slice is reached.",

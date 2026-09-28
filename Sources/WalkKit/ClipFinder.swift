@@ -44,12 +44,30 @@ public enum ClipFinder: Sendable {
         public let directoriesSearched: [URL]
         /// Files that were passed in or found and were NOT video by extension.
         public let skipped: [URL]
+        /// Folders, or entries in them, that could not be read, with the reason.
+        /// NOT folded into `skipped` and NOT silent: "could not look" is a
+        /// different answer from "looked and found nothing" (task #1013 P2).
+        public let unreadable: [FolderWalk.Unreadable]
+
+        public init(clips: [URL], directoriesSearched: [URL], skipped: [URL],
+                    unreadable: [FolderWalk.Unreadable] = []) {
+            self.clips = clips
+            self.directoriesSearched = directoriesSearched
+            self.skipped = skipped
+            self.unreadable = unreadable
+        }
         /// True when directories were searched and nothing video came back.
         /// An empty folder is an ANSWER, and saying so is the same discipline
         /// as `EventDetector.Result.foundNothing`.
         public var foundNothing: Bool { clips.isEmpty }
 
         public var verdict: String {
+            let unread = unreadable.isEmpty ? ""
+                : "; \(unreadable.count) location\(unreadable.count == 1 ? "" : "s") could not be read — see unreadable for why"
+            return baseVerdict + unread
+        }
+
+        private var baseVerdict: String {
             if !clips.isEmpty {
                 return "\(clips.count) clip\(clips.count == 1 ? "" : "s") to scan"
                     + (skipped.isEmpty ? "" : ", \(skipped.count) non-video file\(skipped.count == 1 ? "" : "s") skipped")
@@ -58,61 +76,32 @@ public enum ClipFinder: Sendable {
                 return "nothing to scan — nothing given was a video file"
             }
             return "nothing to scan — \(directoriesSearched.count) folder\(directoriesSearched.count == 1 ? "" : "s") searched, "
-                + (skipped.isEmpty ? "no files in them at all"
+                + (skipped.isEmpty ? (unreadable.isEmpty ? "no files in them at all" : "nothing readable in them")
                                    : "\(skipped.count) file\(skipped.count == 1 ? "" : "s") found and none of them video")
         }
     }
 
     /// Resolve inputs to a sorted, de-duplicated list of video files.
+    ///
+    /// The directory walk is `FolderWalk`'s — shared with `MediaFinder`, so the
+    /// two finders cannot drift apart on how a folder is read (task #1013 P1).
     public static func find(_ inputs: [URL], options: Options = Options()) -> Found {
-        let fm = FileManager.default
+        let listing = FolderWalk.list(inputs, recursive: options.recursive)
         var clips = [URL]()
-        var searched = [URL]()
-        var skipped = [URL]()
-        var seen = Set<String>()
-
-        func consider(_ url: URL) {
-            let standard = url.standardizedFileURL
-            guard seen.insert(standard.path).inserted else { return }
-            if videoExtensions.contains(standard.pathExtension.lowercased()) {
-                clips.append(standard)
+        var skipped = listing.missing
+        for file in listing.files {
+            if videoExtensions.contains(file.pathExtension.lowercased()) {
+                clips.append(file)
             } else {
-                skipped.append(standard)
-            }
-        }
-
-        for input in inputs {
-            let url = input.standardizedFileURL
-            var isDirectory: ObjCBool = false
-            let exists = fm.fileExists(atPath: url.path, isDirectory: &isDirectory)
-            guard exists else { skipped.append(url); continue }
-
-            if isDirectory.boolValue {
-                searched.append(url)
-                if options.recursive {
-                    let e = fm.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey],
-                                          options: [.skipsHiddenFiles, .skipsPackageDescendants])
-                    while let item = e?.nextObject() as? URL {
-                        if (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true { continue }
-                        consider(item)
-                    }
-                } else {
-                    let items = (try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: [.isDirectoryKey],
-                                                             options: [.skipsHiddenFiles])) ?? []
-                    for item in items {
-                        if (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true { continue }
-                        consider(item)
-                    }
-                }
-            } else {
-                consider(url)
+                skipped.append(file)
             }
         }
 
         clips.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
         skipped.sort { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
         if let cap = options.maximumClips, clips.count > cap { clips = Array(clips.prefix(cap)) }
-        return Found(clips: clips, directoriesSearched: searched, skipped: skipped)
+        return Found(clips: clips, directoriesSearched: listing.directoriesSearched,
+                     skipped: skipped, unreadable: listing.unreadable)
     }
 
     public static func find(_ paths: [String], options: Options = Options()) -> Found {

@@ -412,6 +412,14 @@ jobs:
       # root, so every manifest, launcher and skill here is shipped content and
       # CI must judge it as such. `make plugin-check` is the same check the
       # staging target runs locally, so the two cannot diverge.
+      # Task #1013 P4: LICENSE granted nothing while three manifests said
+      # BUSL-1.1 and the README and app said MIT. Every copy is now held to
+      # LICENSE, and the check proves it can fail first.
+      - name: License statements agree with LICENSE, and that check can fail
+        run: |
+          ./.github/check-license.sh --selftest
+          ./.github/check-license.sh
+
       - name: Plugin payload is shippable
         run: |
           ./.github/stage-binary.sh walk-mcp .build/release/walk-mcp "$PWD/bin"
@@ -428,6 +436,9 @@ jobs:
       - name: Spirit Gate check (rule #350)
         if: github.event_name != 'pull_request'
         env:
+          # No default URL in the script (Smith #1013 P5): the endpoint is a
+          # repository variable, like the token is a repository secret.
+          OMATIC_MCP_URL: ${{ vars.OMATIC_MCP_URL }}
           OMATIC_MCP_TOKEN: ${{ secrets.OMATIC_MCP_TOKEN }}
         run: node Tools/spirit-gate-check.mjs .
 

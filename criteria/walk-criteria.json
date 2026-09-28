@@ -1,7 +1,7 @@
 {
   "criteria": {
-    "version": "1.3.0",
-    "walk": "0.9.0",
+    "version": "1.4.0",
+    "walk": "0.10.0",
     "owner": "Andy — Walk's photography coach. The judgment in these rules is his.",
     "established": "2026-09-12"
   },
@@ -35,7 +35,7 @@
           "value": 10.0
         }
       ],
-      "reason": "A thin, distant, well-formed bolt against a sky it barely lifted. The low rise is the reason this is good, not a caveat on it: the scene did not blow out, the foreground kept its tone, and the bolt reads as a drawn line rather than a white flare. Shape without brightness is the most saleable storm frame there is and the hardest to get.",
+      "reason": "A thin, distant, well-formed bolt against a sky it barely lifted. The low rise is the reason this is good, not a caveat on it: the scene did not blow out, the foreground kept its tone, and the bolt reads as a drawn line rather than a white flare. Shape without brightness is what makes a storm frame read, and it is the hardest to get.",
       "origin": "decision #504 (\"it has the SHAPE of lightning without the BRIGHTNESS of it\"); the upper bound on rise is the coach's own judgment — no decision record sets it",
       "nextFlight": "Distance bought you this. Next flight, hold that stand-off rather than closing in — a nearer strike is brighter, not better, and it takes the sky with it. If the horizon is soft, that is the frame to fix, not the exposure."
     },
@@ -103,7 +103,7 @@
       "origin": "decision #504, measured on clip 0012 frame 2347 — lightning 0.3435 at +36.03% linear rise, against 2388's 0.6616 at +3.69%: nearly double the confidence at a tenth of the brightness. The confidence bar sits above the not-lightning floor below so a bright frame the classifier does not recognise cannot reach this band.",
       "change": "Put the contrast back locally: one masked Levels move that holds the bolt and pulls the sky's black point down, so the channel separates from the glow it created. One move, on the sky, not a global curve.",
       "forwardQuestion": "Where did you want to go? If this was meant to be the landscape lit by the storm, the grade is nearly right; if the bolt was the subject, it needs the sky taken away from it.",
-      "nextFlight": "Brightness is not the keeper signal and this frame is the proof — the better frame in this same clip was a tenth as bright. Next flight, stop reviewing by which frame looks brightest on the back of the camera and let the whole interval run; the thin ones are the ones you will sell."
+      "nextFlight": "Brightness is not the keeper signal and this frame is the proof — the better frame in this same clip was a tenth as bright. Next flight, stop reviewing by which frame looks brightest on the back of the camera and let the whole interval run; the thin ones carry the shape the bright ones lose."
     },
     {
       "id": "bolt-the-classifier-half-recognizes",
@@ -159,7 +159,7 @@
       ],
       "reason": "This is a brightness change, not a photograph. Something large got brighter — the sun came through a gap, the camera re-metered, a light swept the frame — and the detector correctly flagged it because the detector is a whole-frame luminance rise. The classifier does not see a storm subject in it, and there is nothing here to grade toward.",
       "origin": "decision #507, measured: 38 candidates on one GoPro clip were luminance events and nothing more, because Walk's detector is a whole-frame luminance-rise trigger with a lightning classifier attached. This rule is that finding made operational.",
-      "nextFlight": "The tell is a big rise with no subject under it, and it is usually the camera and not the sky. Next flight, lock exposure and white balance before the storm arrives so an auto-adjustment stops generating candidates — you will cut your review pile substantially and lose nothing."
+      "nextFlight": "The tell is a big rise with no subject under it, and it is usually the camera and not the sky. Next flight, lock exposure and white balance before the storm arrives so an auto-adjustment stops generating candidates — what is left to review is more likely the sky changing than the camera."
     },
     {
       "id": "nothing-the-classifier-recognizes",

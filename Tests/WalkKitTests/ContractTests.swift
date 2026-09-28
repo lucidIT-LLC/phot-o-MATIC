@@ -155,6 +155,11 @@ import Testing
     #expect(Walk.check(expecting: "0.6.9").detail.contains("NEWER"))
     #expect(Walk.check(expecting: "0.7.1").detail.contains("NEWER"))   // 0.7.x is behind 0.9.0 now
     #expect(Walk.check(expecting: "0.8.1").detail.contains("NEWER"))   // and so is 0.8.x, as of 0.9.0
+    #expect(Walk.check(expecting: "0.9.1").detail.contains("NEWER"))   // and 0.9.x, as of 0.10.0
+    // A TWO-DIGIT MINOR, 0.10.0: it must order above 0.9.x numerically. A
+    // string compare would put "0.10.0" below "0.9.0", and that is the bug
+    // this line exists to catch.
+    #expect(Walk.check(expecting: "0.9.9").detail.contains("NEWER"))
     // and a consumer pinned above us is still told the build is older
-    #expect(Walk.check(expecting: "0.9.1").detail.contains("OLDER"))
+    #expect(Walk.check(expecting: "0.10.1").detail.contains("OLDER"))
 }

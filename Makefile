@@ -22,7 +22,7 @@
 
 SCRATCH := $(HOME)/Library/Developer/Xcode/DerivedData/Walk-spm
 
-.PHONY: build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations sheet-check tests-ran-check verify
+.PHONY: license-check build release test app run clean contract mcp mcp-check install install-cli install-mcp install-check stage-plugin plugin-check payload-size payload-check xcode-build xcode-test gate gate-check gate-home deprecations sheet-check tests-ran-check verify
 
 build:
 	swift build --scratch-path $(SCRATCH)
@@ -396,8 +396,14 @@ sheet-check:
 	./.github/check-sheet-shape.sh --selftest
 	./.github/check-sheet-shape.sh
 
+# Every license statement in the repository says what LICENSE says (#1013 P4).
+# The selftest runs first so the check is never trusted before it has failed.
+license-check:
+	./.github/check-license.sh --selftest
+	./.github/check-license.sh
+
 # Everything CI does that can be done locally, in CI's order.
-verify: deprecations tests-ran-check test mcp-check contract gate-check name-check sheet-check plugin-check payload-check payload-size
+verify: deprecations tests-ran-check test mcp-check contract gate-check name-check sheet-check license-check plugin-check payload-check payload-size
 	@echo ""
 	@echo "local verify complete — CI additionally builds the app bundle and,"
 	@echo "on a tag, asserts the tag equals Walk.version"
