@@ -1,0 +1,9 @@
+interface:
+  display_name: "Media Triage"
+  short_description: "Walk a folder of footage or photos and give a keep/pitch verdict."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Go walk this folder and show me the keepers."
+policy:
+  allow_implicit_invocation: true

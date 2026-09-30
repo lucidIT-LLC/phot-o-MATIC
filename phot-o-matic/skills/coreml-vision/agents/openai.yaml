@@ -1,0 +1,9 @@
+interface:
+  display_name: "CoreML Vision"
+  short_description: "Run CoreML and Apple Vision from the command line on macOS."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Classify these frames with Vision."
+policy:
+  allow_implicit_invocation: true

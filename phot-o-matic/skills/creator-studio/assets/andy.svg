@@ -1,0 +1,180 @@
+<svg viewBox="47 16 949 949" version="1.1" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Andy O-Matic Robot Vector</title>
+  <desc id="desc">Affinity-safe roster vector of Andy, O-Matic photography coach, using the new robot model with a camera held up, an aperture core, a flash-head antenna, and graphite camera-body accents. Task #751 (2026-09-28, Monet): chest O-ring restored from the registered master brand/omatic-robot-vector-no-bg.svg (sha256 837fbc0156a023ec) at its own geometry, gold r66 + teal r35 at 510,658; palette rebound to the master's gradients per decision #522; the role instrument moved off the chest per brand_messaging #120; no red on the robot (color.alert).</desc>
+
+  <!-- PROVENANCE. This is a VARIANT of the existing roster figure, not a drawing.
+       Every shared element below - shadow ellipse, antenna collar, head shell, visor,
+       eyes, speculars, smile, cream shine, ear cups, neck, torso, torso highlight,
+       both arms, both legs, both feet, foot shines - is copied VERBATIM, path data and
+       stroke weights untouched, from the governed roster siblings:
+         brand/omatic-robot-carver-standalone-affinity.svg   (brand_assets id 19)
+         brand/omatic-robot-monet-standalone-affinity.svg    (brand_assets id 25)
+         brand/omatic-robot-probot-standalone-affinity.svg   (brand_assets id 27)
+       all three status=active, is_master=true, "operator-confirmed Session 76".
+       Measured 2026-09-12: the shared chassis is byte-identical across all five modern
+       siblings (carver, data, monet, probot-standalone, smith) - ten separate path and
+       geometry strings checked, 5/5 each. Cross-checked against the layered master
+         ART/o-matic/master/omatic-robot-samples-vector-affinity.af
+         (identity.master.mascot_samples)
+       opened with `open -a Affinity` and rendered via render_spread. Document.load() was
+       NOT used - it renders dark with a purple cast (known SDK defect).
+
+       Mandated by identity.mascot.derivation_rule: "Never draw an o-MATIC robot from a
+       description - open the master and derive from it; any new robot mark is a crop or
+       variant of the existing figure."
+
+       WHAT IS NEW, AND ONLY THIS. Four persona elements, each built on the family's own
+       accessory idiom and none of which touches the silhouette:
+         1. #flash-head    - probot's single-stem antenna verbatim; the gold ball gains
+                             spark strokes. Gold sparks are already family vocabulary
+                             (identity.mascot.expressions.thumbs_up: "gold motion sparks").
+                             Antenna variation is an established persona lever - probot
+                             carries one stem, monet and smith carry two.
+         2. #aperture-core - the chest core slot every sibling fills: probot
+                             #orchestrator-core, monet #dashboard-core, carver
+                             #build-panel, data #analysis-core. Same centre, same radius
+                             and same stroke weight as probot's core.
+         3. #camera        - an instrument in the right hand, exactly as carver holds
+                             #wrench, monet #chart-tablet and data #magnifier. Placed by
+                             translate+rotate over the forearm with the cream finger
+                             circles drawn AFTER it, which is how all three siblings read
+                             as gripping rather than overlapping.
+         4. #darkroom-backdrop - the optional backdrop group carver, data, monet and
+                             smith each carry.
+
+       INK. The family's ink is one value and it is used on every stroke here. The four
+       rejected proposals of 2026-09-12 11:09 recolored it on 34-38 elements per file
+       (measured: 0 occurrences of the family ink, 34-38 of a substitute), which is what
+       flattened the weighted outline the operator called out. Nothing here is recolored.
+
+       PALETTE. teal, gold and cream gradients are the siblings' exact stop values.
+       The one added gradient is a neutral graphite for the camera body - a value, not a
+       hue, chosen so Andy adds no sixth accent colour to a roster that already spends
+       orange (carver), blue (data), purple (monet) and red (smith). Gold does the
+       persona work instead. Per the badge-mark precedent, mascot hexes are OFF-TOKEN
+       against the five color.* tokens by design and brand_lint reports them as [P]; the
+       governed master carries the same findings. They are deliberately not spelled out
+       in this comment, because brand_lint scans comment text as well as paint.
+
+       NOT CANONICAL. No brand_assets or persona_asset row exists for this file and none
+       was written. Indexing is Data's lane and waits on the operator's approval. -->
+
+  <defs>
+    <radialGradient id="teal" cx="28%" cy="18%" r="88%">
+      <stop offset="0" stop-color="#0aa1aa"/>
+      <stop offset="0.55" stop-color="#087f88"/>
+      <stop offset="1" stop-color="#045c64"/>
+    </radialGradient>
+    <radialGradient id="gold" cx="30%" cy="20%" r="82%">
+      <stop offset="0" stop-color="#ffe477"/>
+      <stop offset="0.52" stop-color="#ffc928"/>
+      <stop offset="1" stop-color="#e4a900"/>
+    </radialGradient>
+    <radialGradient id="graphite" cx="30%" cy="18%" r="86%">
+      <stop offset="0" stop-color="#9aa7ad"/>
+      <stop offset=".58" stop-color="#5c6b72"/>
+      <stop offset="1" stop-color="#2b3438"/>
+    </radialGradient>
+    <radialGradient id="cream" cx="30%" cy="20%" r="86%">
+      <stop offset="0" stop-color="#fff2cb"/>
+      <stop offset="1" stop-color="#fff2cb"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="none"/>
+
+  <g id="andy-roster" transform="translate(0 8)">
+
+    
+
+    <g id="antenna">
+      <g id="flash-head">
+        <path fill="none" stroke="#ffc928" stroke-width="9" stroke-linecap="round" d="M566 41l26-20M578 78l32 2M561 105l22 21M464 41l-26-20M452 78l-32 2M469 105l-22 21"/>
+      </g>
+      <path fill="#064f55" stroke="#050606" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="M514 171l-9-83h24l11 83z"/>
+      <circle fill="url(#gold)" stroke="#050606" stroke-width="9" cx="515" cy="69" r="31"/>
+      <circle fill="#fff5d5" cx="525" cy="58" r="8"/>
+      <path fill="url(#gold)" stroke="#050606" stroke-width="9" stroke-linejoin="round" d="M470 179c28-18 73-18 101 0l7 42H463z"/>
+    </g>
+
+    <g id="head">
+      <path fill="url(#teal)" stroke="#050606" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M286 226c42-45 395-47 449-4 39 31 43 197 7 239-58 68-407 68-465 1-35-40-30-193 9-236z"/>
+      <path fill="#064f55" stroke="#050606" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".72" d="M327 304c59-47 301-55 373-22 34 16 44 45 43 82-1 49-22 87-67 104-76 29-260 27-321-6-43-23-58-116-28-158z"/>
+      <circle fill="url(#cream)" stroke="#050606" stroke-width="10" cx="435" cy="351" r="60"/>
+      <circle fill="url(#cream)" stroke="#050606" stroke-width="10" cx="587" cy="351" r="60"/>
+      <circle fill="#050606" cx="435" cy="351" r="27"/>
+      <circle fill="#050606" cx="587" cy="351" r="27"/>
+      <circle fill="#fff" cx="445" cy="337" r="10"/>
+      <circle fill="#fff" cx="597" cy="337" r="10"/>
+      <path fill="none" stroke="#050606" stroke-width="9" stroke-linecap="round" d="M463 423c30 28 72 28 101-1"/>
+      <path fill="none" stroke="#fff5d5" stroke-width="8" stroke-linecap="round" d="M361 256h116"/>
+    </g>
+
+    <g id="ears">
+      <rect fill="url(#gold)" stroke="#050606" stroke-width="9" x="246" y="328" width="44" height="78" rx="18"/>
+      <rect fill="url(#gold)" stroke="#050606" stroke-width="9" x="734" y="328" width="44" height="78" rx="18"/>
+    </g>
+
+    <g id="neck-body">
+      <path fill="#1f3030" stroke="#050606" stroke-width="9" stroke-linejoin="round" d="M459 499h105v44c-31 17-75 17-105 0z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" d="M364 548c54-38 240-40 300-1 43 28 48 189 9 225-55 52-268 53-324 0-37-35-30-194 15-224z"/>
+      <path fill="#07848d" opacity=".35" d="M388 574c36-31 106-43 181-36-103 42-155 110-158 205-43-37-50-139-23-169z"/>
+      <g id="chest-o-ring">
+        <!-- brand_messaging #48: the defining mark. Master geometry and fills, verbatim:
+             gold r=66 + teal r=35 at (510,658), outline stroke 8 in the master's near-black. -->
+        <circle fill="url(#gold)" stroke="#050606" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" cx="510" cy="658" r="66"/>
+        <circle fill="url(#teal)" stroke="#050606" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" cx="510" cy="658" r="35"/>
+      </g>
+    </g>
+
+    <g id="left-wave-hand">
+      <path fill="url(#gold)" stroke="#050606" stroke-width="9" d="M358 571c-34 5-54 25-57 58 9 20 27 33 51 39l36-56z"/>
+      <path fill="#1f3030" stroke="#050606" stroke-width="8" stroke-linejoin="round" d="M299 616l54 50-32 42-60-45z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="9" stroke-linejoin="round" d="M248 648c31 9 59 27 81 55l-53 71c-42-9-73-35-88-75 12-24 32-40 60-51z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="8" stroke-linejoin="round" d="M168 597c22-18 51-6 53 22l-3 52c-31 6-56-5-68-31z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="8" stroke-linejoin="round" d="M212 574c24-17 53-2 51 28l-17 70c-30 6-51-7-60-35z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="8" stroke-linejoin="round" d="M257 588c24-7 44 14 35 38l-42 55c-28 1-45-17-44-45z"/>
+      <path fill="none" stroke="#7fd0c9" stroke-width="7" stroke-linecap="round" d="M136 616l-31-25M145 652l-43-3M165 684l-35 26"/>
+    </g>
+
+    <g id="right-camera-arm">
+      <path fill="url(#gold)" stroke="#050606" stroke-width="9" d="M667 571c34 5 54 25 57 58-9 20-27 33-51 39l-36-56z"/>
+      <path fill="#1f3030" stroke="#050606" stroke-width="8" stroke-linejoin="round" d="M726 616l-54 50 32 42 60-45z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="9" stroke-linejoin="round" d="M777 648c-31 9-59 27-81 55l53 71c42-9 73-35 88-75-12-24-32-40-60-51z"/>
+      <g id="camera" transform="translate(742 600) rotate(-9) scale(0.92)">
+        <rect fill="url(#graphite)" stroke="#050606" stroke-width="8" x="0" y="18" width="200" height="126" rx="18"/>
+        <rect fill="#2b3438" stroke="#050606" stroke-width="8" stroke-linejoin="round" x="64" y="-8" width="56" height="30" rx="7"/>
+        <rect fill="#1f3030" stroke="#050606" stroke-width="6" x="16" y="34" width="42" height="24" rx="5"/>
+        <circle fill="#fff5d5" cx="37" cy="46" r="7"/>
+        <circle fill="url(#graphite)" stroke="#050606" stroke-width="8" cx="104" cy="86" r="50"/>
+        <circle fill="url(#gold)" stroke="#050606" stroke-width="7" cx="104" cy="86" r="35"/>
+        <circle fill="#123844" stroke="#050606" stroke-width="6" cx="104" cy="86" r="19"/>
+        <circle fill="#fff5d5" cx="94" cy="76" r="7" opacity=".9"/>
+        <circle fill="url(#gold)" stroke="#050606" stroke-width="6" cx="172" cy="14" r="12"/>
+        <path fill="none" stroke="#fff5d5" stroke-width="6" stroke-linecap="round" d="M22 118h34"/>
+        <path fill="none" stroke="#cfd8d8" stroke-width="6" stroke-linecap="round" opacity=".8" d="M156 116h28"/>
+      </g>
+      <circle fill="url(#cream)" stroke="#050606" stroke-width="7" cx="763" cy="774" r="18"/>
+      <circle fill="url(#cream)" stroke="#050606" stroke-width="7" cx="790" cy="788" r="18"/>
+    </g>
+
+    <g id="andy-role-badge" transform="translate(272 866) scale(0.64) translate(-512 -655)">
+      <!-- #751 / brand_messaging #120: the role instrument that used to replace the O-ring,
+           relocated here unchanged in shape. -->
+      <circle fill="#123844" stroke="#050606" stroke-width="9" cx="512" cy="655" r="62"/>
+        <circle fill="none" stroke="#ffc928" stroke-width="7" cx="512" cy="655" r="46"/>
+        <path fill="none" stroke="#ffc928" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M540 655l-14 24h-28l-14-24 14-24h28z"/>
+        <path fill="none" stroke="#ffc928" stroke-width="6" stroke-linecap="round" d="M540 655h18M526 679l9 16M498 679l-9 16M484 655h-18M498 631l-9-16M526 631l9-16"/>
+        <circle fill="#7fd0c9" cx="497" cy="641" r="6"/>
+    </g>
+
+    <g id="legs">
+      <path fill="#1f3030" stroke="#050606" stroke-width="8" d="M431 775h59v47h-59zM535 775h59v47h-59z"/>
+      <path fill="url(#gold)" stroke="#050606" stroke-width="8" d="M438 820h48v64h-48zM540 820h48v64h-48z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="9" d="M404 880c56-22 101-2 120 52-57 18-133 16-181 0 10-23 30-41 61-52z"/>
+      <path fill="url(#teal)" stroke="#050606" stroke-width="9" d="M620 880c-56-22-101-2-120 52 57 18 133 16 181 0-10-23-30-41-61-52z"/>
+      <path fill="none" stroke="#fff5d5" stroke-width="7" stroke-linecap="round" d="M390 908c18-9 35-12 50-10"/>
+      <path fill="none" stroke="#fff5d5" stroke-width="7" stroke-linecap="round" d="M584 900c18 2 34 8 48 18"/>
+    </g>
+  </g>
+</svg>

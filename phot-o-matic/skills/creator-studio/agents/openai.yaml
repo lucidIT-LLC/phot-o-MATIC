@@ -1,0 +1,9 @@
+interface:
+  display_name: "Creator Studio"
+  short_description: "Drive Final Cut Pro, Pixelmator Pro, Photomator, and Photos."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Read this Final Cut library."
+policy:
+  allow_implicit_invocation: true
