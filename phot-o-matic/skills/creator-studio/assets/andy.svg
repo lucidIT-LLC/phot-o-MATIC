@@ -82,10 +82,31 @@
   </defs>
 
   <rect width="1024" height="1024" fill="none"/>
+  <ellipse fill="#e8ddc7" cx="518" cy="930" rx="276" ry="28" opacity=".42"/>
 
   <g id="andy-roster" transform="translate(0 8)">
 
-    
+    <g id="darkroom-backdrop">
+      <circle fill="#5c6b72" cx="512" cy="431" r="342" opacity=".14"/>
+      <g id="thirds-frame" transform="translate(170 196) rotate(-5)">
+        <rect fill="none" stroke="#9da9ad" stroke-width="7" stroke-linejoin="round" opacity=".8" x="0" y="0" width="186" height="140" rx="8"/>
+        <path fill="none" stroke="#cfd8d8" stroke-width="5" stroke-linecap="round" opacity=".85" d="M62 0v140M124 0v140M0 47h186M0 93h186"/>
+        <path fill="none" stroke="#ffc928" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" d="M62 33v14h14M124 107v-14h-14"/>
+      </g>
+      <g id="histogram-card" transform="translate(742 178) rotate(6)">
+        <rect fill="#f5f2e8" stroke="#050606" stroke-width="7" x="0" y="0" width="130" height="98" rx="12"/>
+        <path fill="#5c6b72" opacity=".55" d="M14 80h12V58h13v-13h13V27h13v18h13v16h13v14h13v5H14z"/>
+        <path fill="none" stroke="#ffc928" stroke-width="6" stroke-linecap="round" d="M14 84h102"/>
+        <path fill="none" stroke="#34b0a6" stroke-width="6" stroke-linecap="round" d="M92 84V45"/>
+      </g>
+      <g id="corner-brackets" opacity=".55">
+        <path fill="none" stroke="#9da9ad" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" d="M196 706v46h46M828 786v-46h-46"/>
+      </g>
+      <g id="sparkles">
+        <path fill="#ffc928" d="M668 126l9 19 19 9-19 9-9 19-9-19-19-9 19-9z"/>
+        <path fill="#ffc928" d="M286 742l8 17 17 8-17 8-8 17-8-17-17-8 17-8z"/>
+      </g>
+    </g>
 
     <g id="antenna">
       <g id="flash-head">

@@ -29,9 +29,9 @@
       "Interactive",
       "Read"
     ],
-    "websiteURL": "https://o-matic.ai",
-    "privacyPolicyURL": "https://o-matic.ai",
-    "termsOfServiceURL": "https://o-matic.ai",
+    "websiteURL": "https://www.o-matic.ai/",
+    "privacyPolicyURL": "https://www.o-matic.ai/privacy-policy/",
+    "termsOfServiceURL": "https://www.o-matic.ai/terms-of-service/",
     "defaultPrompt": [
       "What does this build of phot-o-MATIC actually do, and what is missing?",
       "Go walk this folder of footage and show me the candidates.",
