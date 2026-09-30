@@ -160,6 +160,9 @@ import Testing
     // string compare would put "0.10.0" below "0.9.0", and that is the bug
     // this line exists to catch.
     #expect(Walk.check(expecting: "0.9.9").detail.contains("NEWER"))
-    // and a consumer pinned above us is still told the build is older
-    #expect(Walk.check(expecting: "0.10.1").detail.contains("OLDER"))
+    // and a consumer pinned above us is still told the build is older. Derived
+    // from the build's own version (one patch above it): a literal "0.10.1"
+    // was "above us" only while the build was 0.10.0, and failed at 0.10.2.
+    let v = Walk.version.split(separator: ".").compactMap { Int($0) }
+    #expect(Walk.check(expecting: "\(v[0]).\(v[1]).\(v[2] + 1)").detail.contains("OLDER"))
 }

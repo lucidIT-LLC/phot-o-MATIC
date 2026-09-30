@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.10.2 — 2026-09-30 — one version again: the engine says what the plugin ships
+
+- `Sources/WalkKit/Version.swift` moves 0.10.0 -> 0.10.2 to match the plugin
+  manifests. 0.10.1 and 0.10.2 were plugin-only releases (pack mark, Andy on
+  every skill, the icons' backdrops, real privacy and terms links, the private
+  server scan) that bumped the manifests and not the engine, so `make
+  plugin-check` refused every build ("One version, not two", #729) and CI was
+  red. **No engine source changed since 0.10.0** (`git diff e8deea1 -- Sources
+  Package.swift` is empty), so the contract moves with no behavior change and
+  the coach skill's pin moves to 0.10.2 with it (Studio 1.10.9).
+- The three local-media test fixtures (a known-answer clip, a second clip, a
+  proof-sheet folder) no longer name paths on the maintainer's disk in this
+  public repository. Their paths come from WALK_KNOWN_ANSWER_CLIP,
+  WALK_SECOND_CLIP and WALK_SHEET_FOLDER, which `make test` reads from the
+  git-ignored `.fixtures.env`; unset, the tests are skipped, exactly as on CI.
+  Measured both ways: with the paths, 20 tests ran against the real clips;
+  without, 14 skipped.
+- `Tools/check-no-private-servers.mjs` now skips `.build/` and the other
+  excluded folders at the top level too (its pattern required a leading
+  slash, so a scan from the repository root walked the build output).
+- CI reads the coach skill's Walk pin from anywhere in the skill directory,
+  because Studio 1.10.8 moved the Walk engine section into
+  `reference/walk-engine.md`.
+
 ## 0.10.0 — 2026-09-28 — a scan carries the criteria's identity, not its reference; failures carry reasons
 
 Tasks #765 and #773, and Smith's #1013 audit of this repository (P1–P5). Every

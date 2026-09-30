@@ -384,7 +384,8 @@ func fixtureManifest() -> [String: Any] {
 // reported as a skip so a green run is not read as a verified sheet.
 
 enum SheetMaterial {
-    static let folder = "/Volumes/NVMeExt1/Content/Photography/DJI_001"
+    // From WALK_SHEET_FOLDER (.fixtures.env via `make test`); unset = skipped.
+    static let folder = ProcessInfo.processInfo.environment["WALK_SHEET_FOLDER"] ?? ""
     static var url: URL { URL(fileURLWithPath: folder) }
 
     /// THE PRECONDITION PROVED THE WRONG THING, AND IT COST A RED SUITE.

@@ -77,6 +77,12 @@ release:
 # target sets pipefail AND parses the log for a positive test count, and
 # refuses on "Executed 0 tests", a missing summary, or a build-failure marker.
 # `make tests-ran-check` proves the guard can fail; run it before trusting it.
+# Local-only test fixtures (media on the maintainer's disk): paths live in the
+# git-ignored .fixtures.env, never in this public repository. Absent = the
+# tests that need them are skipped, exactly as on CI.
+-include .fixtures.env
+export WALK_KNOWN_ANSWER_CLIP WALK_SECOND_CLIP WALK_SHEET_FOLDER
+
 test:
 	@mkdir -p $(SCRATCH); set -o pipefail; \
 	WALK_TEST_WATCHDOG_SECONDS=120 swift test --scratch-path $(SCRATCH) 2>&1 | tee $(SCRATCH)/test.log

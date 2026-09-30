@@ -19,8 +19,8 @@ import CoreVideo
 // below them run everywhere.
 
 enum SecondClip {
-    static let clipPath =
-        "/Volumes/NVMeExt1/Content/Photography/Digital Negatives/storm/DJI_20260912051528_0011_D.MP4"
+    // From WALK_SECOND_CLIP (.fixtures.env via `make test`); unset = skipped.
+    static let clipPath = ProcessInfo.processInfo.environment["WALK_SECOND_CLIP"] ?? ""
     static var url: URL { URL(fileURLWithPath: clipPath) }
     static var available: Bool { FileManager.default.fileExists(atPath: clipPath) }
 }

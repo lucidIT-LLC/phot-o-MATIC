@@ -204,7 +204,10 @@ jobs:
             echo "  (expected on a CI runner; this check is meaningful on a developer machine)"
             exit 0
           fi
-          PIN=$(grep -oE 'walk contract --expect [0-9]+\.[0-9]+\.[0-9]+' "$SKILL" | head -1 | awk '{print $NF}')
+          # The pin may live in the skill's reference files (Studio 1.10.8 moved
+          # the Walk engine section to reference/walk-engine.md), so read the
+          # whole skill directory, SKILL.md first.
+          PIN=$(grep -rhoE 'walk contract --expect [0-9]+\.[0-9]+\.[0-9]+' "$SKILL" "$(dirname "$SKILL")/reference" 2>/dev/null | head -1 | awk '{print $NF}')
           [ -n "$PIN" ] || { echo "::error::could not read a Walk pin out of $SKILL"; exit 1; }
           echo "coach skill pins Walk $PIN"
           if ! .build/release/walk contract --expect "$PIN"; then

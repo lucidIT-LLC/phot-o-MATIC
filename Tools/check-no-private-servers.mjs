@@ -25,7 +25,7 @@ const PRIVATE = [
   [/\/Users\/[a-z][A-Za-z0-9_-]+\//, "one person's home folder"],
   [/\/Volumes\/NVMe/, "one machine's disk path"],
 ];
-const files = walk(root).filter((f) => !/\/(\.git|node_modules|\.build|dist)\//.test(f)
+const files = walk(root).filter((f) => !/(^|\/)(\.git|node_modules|\.build|dist)\//.test(f)
   && !/(verify-pack|check-no-private-servers)\.mjs$/.test(f)
   && /\.(md|ya?ml|mjs|js|cjs|ts|py|sh|json|txt|toml|swift)$/.test(f));
 let hits = 0;

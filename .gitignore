@@ -33,3 +33,4 @@ DerivedData/
 *.index-build/
 ModuleCache.noindex/
 Intermediates.noindex/
+.fixtures.env

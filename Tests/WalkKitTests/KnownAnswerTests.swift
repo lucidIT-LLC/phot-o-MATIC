@@ -20,8 +20,10 @@ import ImageIO
 // log instead of passing silently.
 
 enum KnownAnswer {
-    static let clipPath =
-        "/Volumes/NVMeExt1/Content/Photography/Digital Negatives/storm/DJI_20260912051637_0012_D.MP4"
+    // The clip lives on the maintainer's disk, not in this public repository:
+    // its path comes from WALK_KNOWN_ANSWER_CLIP (set by .fixtures.env via
+    // `make test`). Unset, the file is absent and these tests are skipped.
+    static let clipPath = ProcessInfo.processInfo.environment["WALK_KNOWN_ANSWER_CLIP"] ?? ""
 
     static var url: URL { URL(fileURLWithPath: clipPath) }
     static var available: Bool { FileManager.default.fileExists(atPath: clipPath) }
