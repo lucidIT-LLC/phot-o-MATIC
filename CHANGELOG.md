@@ -657,8 +657,7 @@ is the feature: metadata first (the manifest is complete, every cell slot
 present, `ready: false`, before a single pixel is decoded), then a placeholder
 pass, then the sharp cells. The manifest is rewritten ATOMICALLY after every
 item, so a viewer polling it watches the sheet resolve and never reads half a
-document. MEASURED on the operator's own card — `/Volumes/NVMeExt1/Content/
-Photography/DJI_001`, 8 clips, 2 JPG, 1 DNG, 5.8 GB, 99 cells:
+document. MEASURED on the operator's own card — a DJI card folder, 8 clips, 2 JPG, 1 DNG, 5.8 GB, 99 cells:
 
 ```
 t+0.73 s   manifest on disk, 11 items, 99 cells, 0 placeholders, 0 ready

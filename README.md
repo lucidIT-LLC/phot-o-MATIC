@@ -165,7 +165,7 @@ always describe every candidate found.
 
 ```
 $ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"walk_scan_folder",
-  "arguments":{"path":"/Volumes/NVMeExt1/Content/Photography/100GOPRO","max_clips":8}}}' \
+  "arguments":{"path":"/Volumes/CARD/DCIM/100GOPRO","max_clips":8}}}' \
   | walk-mcp
 ```
 ```
@@ -202,10 +202,10 @@ COACHING VERDICT  none rendered
   verdicts, and #513 that the output is a coaching verdict rather than a readout; the
   criteria file is the mechanism a verdict comes from and phot-o-MATIC does not ship one. The
   measurements are complete and unjudged. Install a criteria set at
-  /Users/lucid/Library/Application Support/Walk/criteria.json, or name one with
+  ~/Library/Application Support/Walk/criteria.json, or name one with
   WALK_CRITERIA, and every scan renders bands from it.
   looked in:
-    default: /Users/lucid/Library/Application Support/Walk/criteria.json
+    default: ~/Library/Application Support/Walk/criteria.json
 
   The bands a criteria set fills:
     KEEPER
