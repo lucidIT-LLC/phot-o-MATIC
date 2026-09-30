@@ -1,9 +1,9 @@
 {
   "name": "phot-o-matic",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "phot-o-MATIC — on-device footage triage for photographers. Scans video on Apple silicon and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
   "author": {
-    "name": "LucidIT, LLC",
+    "name": "o-MATIC AI Research Lab",
     "url": "https://o-matic.ai"
   },
   "homepage": "https://o-matic.ai",
@@ -23,7 +23,7 @@
     "displayName": "phot-o-MATIC",
     "shortDescription": "Find the frames worth keeping in a folder of footage, measured on-device.",
     "longDescription": "phot-o-MATIC decodes video on Apple silicon and finds the frames worth a second look: a whole-frame luminance-rise detector paired with an on-device Vision classifier, with every candidate carrying its frame index, timecode, the rise over a local median baseline, 10-bit Y-plane statistics, classifier confidences, and a written thumbnail you can open. The classification runs on the machine, so a clip of several thousand frames costs no tokens to look at. The measurements are evidence, not a ranking: a frame that scores badly can be the photograph, and sorting by brightness is how a first pass loses real events. Requires macOS 26 or later on Apple silicon — the engine links Vision, CoreML and AVFoundation and has no Intel build and no port.",
-    "developerName": "LucidIT, LLC",
+    "developerName": "o-MATIC AI Research Lab",
     "category": "Productivity",
     "capabilities": [
       "Interactive",
@@ -39,6 +39,8 @@
       "Build a proof sheet from the candidates in this clip.",
       "Show me the segments where something happened in this clip."
     ],
-    "brandColor": "#00B5AD"
+    "brandColor": "#00B5AD",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/logo.png"
   }
 }
