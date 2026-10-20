@@ -69,6 +69,41 @@ echo "$MODERN" | grep -q '"code":-32022' \
 echo "$MODERN" | grep -q '"requested":"1900-01-01"' \
   || fail "the version refusal did not name the version that was requested"
 
+# --- 2026-07-28 shape (Claude Code: "missing required resultType") ----------
+# MEASURED 2026-10-19. initialize is the LEGACY handshake and must never agree
+# to a modern revision; a request declaring the modern version in _meta must get
+# resultType on every result, plus ttlMs/cacheScope on the cacheable lists.
+M='"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}'
+ASKMODERN=$(printf '%s\n' \
+  '{"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{},"clientInfo":{"name":"t","version":"1"}},"jsonrpc":"2.0","id":0}' \
+  | "$BIN" 2>/dev/null)
+echo "$ASKMODERN" | grep -q '"protocolVersion":"2026-07-28"' \
+  && fail "initialize agreed to the modern revision; it is the legacy handshake"
+echo "$ASKMODERN" | grep -q '"protocolVersion":"2025-11-25"' \
+  || fail "initialize asked for 2026-07-28 did not answer the newest legacy revision"
+
+RT=$(printf '%s\n' \
+  "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{$M}}" \
+  "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\",\"params\":{$M}}" \
+  "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"resources/list\",\"params\":{$M}}" \
+  "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"prompts/list\",\"params\":{$M}}" \
+  "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"walk_contract\",\"arguments\":{},$M}}" \
+  "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"server/discover\",\"params\":{$M}}" \
+  | "$BIN" 2>/dev/null)
+N=$(echo "$RT" | grep -c '"resultType":"complete"' || true)
+[ "$N" = "6" ] || fail "modern requests: $N of 6 results carried resultType complete"
+for id in 1 3 4 6; do
+  echo "$RT" | grep "\"id\":$id[,}]" | grep -q '"ttlMs":' \
+    || fail "modern result id $id lacks ttlMs (required on list/discover results)"
+  echo "$RT" | grep "\"id\":$id[,}]" | grep -q '"cacheScope":"public"' \
+    || fail "modern result id $id lacks cacheScope"
+done
+
+# Legacy shape must NOT change: no resultType, no cache hints.
+echo "$LEGACY" | grep -q '"resultType"' \
+  && fail "a legacy request got resultType; legacy replies must stay byte-compatible"
+echo "$LEGACY" | grep -q '"ttlMs"' && fail "a legacy request got ttlMs"
+
 # --- framing: stdout must be nothing but one MCP message per line -----------
 BAD=$(echo "$LEGACY$MODERN" | grep -vc '^{' || true)
 [ "$BAD" = "0" ] || fail "$BAD line(s) on stdout were not a JSON object — the stdio binding forbids anything else"

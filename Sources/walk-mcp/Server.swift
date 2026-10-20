@@ -197,6 +197,13 @@ struct Server {
 
         let params = obj["params"] ?? .object([:])
 
+        // Does THIS request speak the modern revision? Decided per request, from
+        // what the request carries (the spec makes the protocol stateless), never
+        // from a handshake. A legacy request carries no version and is answered
+        // byte-for-byte as before.
+        let modern = params["_meta"]?[Protocols.metaVersionKey]?.stringValue
+            .map { Protocols.modern.contains($0) } ?? false
+
         // Modern version gate. Only applies when the request actually declares a
         // version; a legacy request carries none and is served as legacy.
         if let declared = params["_meta"]?[Protocols.metaVersionKey]?.stringValue {
@@ -218,7 +225,7 @@ struct Server {
             // for it", so a cancelled tool call is silent rather than answered
             // with an error the client has no request left to match it to.
             if let result = try await dispatch(method: method, params: params, id: id) {
-                await reply(id: id, result: result)
+                await reply(id: id, result: modern ? Self.modernResult(method, result) : result)
             } else {
                 wire.verbose("no reply sent for cancelled request \(id)")
             }
@@ -227,6 +234,39 @@ struct Server {
         } catch {
             await reply(id: id, error: .internalError("\(error)"))
         }
+    }
+
+    /// Revision 2026-07-28 shape of a successful result.
+    ///
+    /// MEASURED 2026-10-19: Claude Code reported `plugin:phot-o-matic:walk !
+    /// tools fetch failed - Invalid result for tools/list: missing required
+    /// resultType`. Read from modelcontextprotocol.io/specification/2026-07-28:
+    ///  - basic: "The `result` MUST include a `resultType` field"; `"complete"`
+    ///    is the ordinary result. Only servers on EARLIER revisions are bridged
+    ///    (absent is treated as complete), so a server that speaks 2026-07-28
+    ///    gets no bridge.
+    ///  - server/utilities/caching: servers MUST include `ttlMs` (integer ms,
+    ///    >= 0) and `cacheScope` ("public"|"private") on complete results of
+    ///    server/discover, tools/list, prompts/list, resources/list,
+    ///    resources/templates/list and resources/read. tools/call is not on
+    ///    that list.
+    ///  - changelog item 5: `ping` was REMOVED in 2026-07-28. It is still
+    ///    answered here (empty and complete) because it is harmless and a
+    ///    client that sends one should not be told the server is broken.
+    /// The tool list is fixed for the life of the process and identical for
+    /// every caller, so `public` and a five-minute TTL are true, not hopeful.
+    static let cacheableMethods: Set<String> = [
+        "server/discover", "tools/list", "prompts/list", "resources/list",
+    ]
+
+    static func modernResult(_ method: String, _ result: JSON) -> JSON {
+        guard case .object(var o) = result else { return result }
+        if o["resultType"] == nil { o["resultType"] = .string("complete") }
+        if cacheableMethods.contains(method) {
+            if o["ttlMs"] == nil { o["ttlMs"] = .int(300_000) }
+            if o["cacheScope"] == nil { o["cacheScope"] = .string("public") }
+        }
+        return .object(o)
     }
 
     private func handleNotification(_ method: String, params: JSON?) async {
@@ -258,12 +298,17 @@ struct Server {
 
         // MARK: legacy
         case "initialize":
-            // Echo back the client's own version when this server speaks it, so
-            // a legacy client gets the revision it asked for; otherwise name the
-            // newest legacy revision, because a legacy client has no way to
-            // fall forward and this string may be its only diagnostic.
+            // `initialize` IS THE LEGACY HANDSHAKE and must never agree to a
+            // modern revision: 2026-07-28 removed it, and a modern revision
+            // obliges `resultType` on every result, which a legacy reply
+            // legitimately omits. MEASURED 2026-10-19: echoing a client's
+            // 2026-07-28 here made Claude Code treat the session as modern and
+            // reject our legacy-shaped tools/list. So: echo the client's version
+            // only when it is a LEGACY revision this server speaks; otherwise
+            // name the newest legacy revision, which is also the only
+            // diagnostic a client that cannot fall forward will get.
             let asked = params["protocolVersion"]?.stringValue
-            let agreed = (asked.flatMap { Protocols.all.contains($0) ? $0 : nil })
+            let agreed = (asked.flatMap { Protocols.legacy.contains($0) ? $0 : nil })
                 ?? Protocols.legacy[0]
             await era.record("legacy (initialize, asked \(asked ?? "nothing"), agreed \(agreed))", wire)
             return .object([
