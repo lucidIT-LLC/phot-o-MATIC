@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "phot-o-matic",
   "owner": {
-    "name": "lucidIT-LLC",
+    "name": "LucidIT, LLC",
     "email": "lucideye@icloud.com"
   },
   "metadata": {
