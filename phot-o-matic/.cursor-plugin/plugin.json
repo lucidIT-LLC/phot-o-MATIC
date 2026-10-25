@@ -1,0 +1,32 @@
+{
+  "name": "phot-o-matic",
+  "displayName": "phot-o-MATIC",
+  "version": "0.10.2",
+  "description": "phot-o-MATIC — on-device footage triage for photographers. Scans video on Apple silicon and returns candidate frames with their measurements and a written thumbnail. Ships an MCP server; requires macOS 26 on arm64.",
+  "author": {
+    "name": "o-MATIC AI Research Lab",
+    "url": "https://o-matic.ai"
+  },
+  "homepage": "https://o-matic.ai",
+  "repository": "https://github.com/lucidIT-LLC/phot-o-MATIC",
+  "license": "LicenseRef-lucidIT-no-license-granted",
+  "keywords": [
+    "omatic",
+    "photography",
+    "video",
+    "vision",
+    "coreml",
+    "triage",
+    "cursor"
+  ],
+  "logo": "assets/logo.png",
+  "category": "productivity",
+  "tags": [
+    "o-matic",
+    "photography",
+    "video",
+    "vision",
+    "mcp"
+  ],
+  "mcpServers": "./mcp.json"
+}
