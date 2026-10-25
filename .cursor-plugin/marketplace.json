@@ -1,7 +1,7 @@
 {
   "name": "phot-o-matic",
   "owner": {
-    "name": "lucidIT-LLC"
+    "name": "LucidIT, LLC"
   },
   "metadata": {
     "description": "phot-o-MATIC — on-device footage triage for photographers. The marketplace manifest lives at the repository root and the pack lives in ./phot-o-matic, the same shape as the other o-MATIC doors.",
