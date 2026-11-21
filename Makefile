@@ -279,8 +279,8 @@ plugin-check:
 			echo "plugin-check FAILED: $(PACK)/bin/walk-mcp carries com.apple.quarantine and macOS will refuse to run it" >&2; fail=1; \
 		fi; \
 	fi; \
-	: 'The three skills are payload, not decoration — they ship inside the pack.'; \
-	for s in media-triage coreml-vision creator-studio; do \
+	: 'The shipped skills are payload, not decoration — they ship inside the pack.'; \
+	for s in media-triage coreml-vision creator-studio andy-photo-coach fcpxml-video; do \
 		[ -f "$(PACK)/skills/$$s/SKILL.md" ] || { echo "plugin-check FAILED: $(PACK)/skills/$$s/SKILL.md is missing" >&2; fail=1; }; \
 	done; \
 	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
