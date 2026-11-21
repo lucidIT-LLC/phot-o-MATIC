@@ -1,0 +1,9 @@
+interface:
+  display_name: "Andy Photo Coach"
+  short_description: "Grade a photograph against where you want to take it, then measure and coach the edit."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Tell me where we're taking this photograph."
+policy:
+  allow_implicit_invocation: true

@@ -107,3 +107,57 @@ are not the frames requested (#721). It still never reads, writes or retimes
 Any pixel edit to a JPEG costs a generation. Match the original's chroma —
 checking `pix_fmt` first — or a 4:4:4 original re-encoded at 4:2:0 loses 3.5 dB
 for nothing.
+
+## The engine contract — ask before inferring
+
+Call `walk_contract` before relying on a capability list. phot-o-MATIC states
+what it does and what it does not; absence is not permission to infer a writer
+or a verdict.
+
+**Present** (among others; confirm the live contract): `video.read`,
+`video.write.reencode`, `video.retime`, `video.scan`, `video.detect`,
+`video.segment`, `video.trim`, `video.yPlane`, `video.write.passthrough`,
+`classify.vision`, `coreml.custom`, `ingest.folderScan`, `ingest.stills`,
+`sheet.timeSampled`, `telemetry.djiSRT`, and the proof-sheet capabilities.
+Coach **bands** for clips render only when a host criteria set is installed.
+
+**Absent — do not infer them, and do not claim the engine ships them:**
+
+- `coach.stills` — the engine measures a photograph and can show it; it cannot
+  judge one. Andy grades stills after looking at the frame or the
+  measurements. Several clip selectors (rise, sigma, merged frames) are
+  undefined for a still: a photograph has no temporal neighbours.
+- `fcpxml.export` — no WalkKit code emits FCPXML. Segments still come out as
+  `.mov` files only. Final Cut Pro is a handoff target, not a control surface.
+  See the `fcpxml-video` skill for a hand-authored XML path.
+- `video.audio` — audio is never read, retimed, or written. Segments come out
+  silent.
+- `app.drive` — the engine does not drive Pixelmator Pro, Affinity, or
+  Lightroom. Actuation is the coach's lane, on the operator's Mac, with
+  approval.
+- `ingest.dump` / `ingest.triage` — ranking a mixed folder by interest is not
+  built. `ingest.folderScan` enumerates and scans; `sheet.timeSampled` shows
+  the folder so the operator can decide.
+- `touchup` — quick automatic corrections are not built.
+- An MLX runtime — Core ML / Vision is the on-device path that ships.
+
+Keep decode and inference on-device. Never upload clips to classify them.
+
+## Core Video — frame handling
+
+Source: https://developer.apple.com/documentation/corevideo
+
+- `CVPixelBuffer` is the usual Vision / Core ML frame type.
+- `CVPixelBufferPool` recycles buffers so a long scan does not allocate per
+  frame.
+- `CVMetalTexture` / `CVMetalTextureCache` only if a Metal path is required.
+- Do not use OpenGL / OpenGL ES on a modern Mac path.
+
+The saliency pitfall in `coreml-vision` applies here too: `.heatMap` is a
+`PixelBufferObservation` whose `.pixelBuffer` is a `CVReadOnlyPixelBuffer`
+that `CVPixelBufferGetWidth` refuses. Prefer `salientObjects` boxes
+(normalized, origin bottom-left).
+
+For a custom Core ML model on frames, use a compiled `.mlmodelc` and a
+pixel-buffer pool. Do not hold full-resolution 4K frames and a large language
+model in memory together on a 32 GB Mac.

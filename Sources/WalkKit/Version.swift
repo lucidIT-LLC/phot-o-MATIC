@@ -27,7 +27,11 @@ public enum Walk {
     // here rather than left as an unexplained gap, because an unexplained gap in
     // a version sequence is exactly the sort of thing a later session
     // "corrects."
-    public static let version = "0.10.2"
+    // 0.10.3 is a plugin-skill sync. No new WalkKit capabilities ship in this
+    // release; the contract and notImplemented list are unchanged. The prebuilt
+    // phot-o-matic/bin/walk-mcp must be restaged from this tree on a Mac so the
+    // binary's --version matches this string (the #729 one-version rule).
+    public static let version = "0.10.3"
 
     /// Capabilities a consumer may rely on, each with the version that
     /// introduced it. A consumer naming a capability absent from this list is

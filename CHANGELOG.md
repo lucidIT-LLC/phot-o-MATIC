@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.10.3 — 2026-11-21 — Andy's Creator Studio, Core ML, and stills-coaching skills sync into the pack
+
+Plugin-skill release. No new WalkKit capabilities; `Sources/WalkKit/Version.swift`
+moves 0.10.2 -> 0.10.3 so the engine version and the plugin manifests stay on
+one number (the #729 rule). The contract and `notImplemented` list are
+unchanged.
+
+- `creator-studio` keeps the September 2026 measured dictionaries and adds the
+  27 October 2026 Creator Studio AI update: hook classes (agent hook / app-only /
+  unverified), the November re-measure rule, Pixelmator Pro Generate Fill as
+  unverified until the updated sdef is measured, on-device-first with the
+  Document Exporting API called out as a cloud exception, and default still and
+  video workflows.
+- `coreml-vision` keeps the measured Vision API shapes and adds Core ML as the
+  default inference layer, Create ML Components, a 32 GB Apple silicon budget,
+  MLX as secondary, and the existing `classify.vision` / `coreml.custom` hooks.
+- `media-triage` keeps the measurement-first culling method and now points at
+  `walk_contract` for present vs absent capabilities (`coach.stills`,
+  `fcpxml.export`, `video.audio`, `app.drive`, and the rest), plus Core Video
+  frame-handling notes.
+- New pack skills: `andy-photo-coach` (Andy grades stills; the engine does not)
+  and `fcpxml-video` (hand-authored FCPXML handoff; `fcpxml.export` is still
+  not implemented).
+- Marketplace and plugin manifests bump to 0.10.3. The Cursor marketplace
+  `owner.name` is left as it stands on `main` (open PR #2 owns that line).
+
+**Not built in code, and not claimed here:** `fcpxml.export`, `coach.stills`,
+`app.drive`, and an MLX runtime. Those remain in `Walk.notImplemented` or are
+simply not a shipped path.
+
+**Mac restage required before this tag is shippable.**
+`phot-o-matic/bin/walk-mcp` still embeds 0.10.2. `make plugin-check` on a Mac
+will refuse the tree until the arm64 binary is rebuilt and restaged from this
+source. This Linux environment cannot produce that Mach-O.
+
+
 ## 0.10.2 — 2026-09-30 — one version again: the engine says what the plugin ships
 
 - `Sources/WalkKit/Version.swift` moves 0.10.0 -> 0.10.2 to match the plugin

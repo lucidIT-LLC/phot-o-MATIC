@@ -68,3 +68,64 @@ An app with no scripting dictionary is not an app with no capability. Photomator
 has no `.sdef` and no App Intents and is completely undriveable by AppleScript —
 and its entire engine is thirteen files on disk that load in one line. **Check
 where the capability lives, not where the interface is.**
+
+## On-device first — Core ML is the default inference layer
+
+**Mac-native, on-device first; cloud only as a flagged exception.** Use Core ML
+as the default inference layer: https://developer.apple.com/documentation/coreml
+
+- **Vision** for requests that wrap Apple models (classification, horizon,
+  saliency, subjects, or a custom model via `VNCoreMLModel`).
+- **Core Video** to hold and pool `CVPixelBuffer` frames.
+- **Create ML Components** to compose image transformers and estimators, then
+  fit or wrap a Core ML model for use in-app or through phot-o-MATIC
+  (`coreml.custom`).
+- phot-o-MATIC already exposes `classify.vision` (since 0.3.0) and
+  `coreml.custom` (since 0.5.7). Prefer those when the plugin is present. Call
+  `walk_contract` before relying on the list.
+- **MLX is secondary.** Use it only when a model has no acceptable Core ML
+  conversion, and say you are leaving the default path. phot-o-MATIC does not
+  ship an MLX runtime.
+
+Never silently send a photograph or clip to a cloud vision API.
+
+## Create ML Components (on-device train / transform)
+
+Source: https://developer.apple.com/documentation/createmlcomponents (macOS 13+).
+
+Components are transformers and estimators composed with `.appending`; fitting
+turns an estimator into a transformer. Useful image pieces:
+
+- `ImageReader`, `ImageFeaturePrint` / `ImageFeatureExtractor`,
+  `MLModelImageFeatureExtractor`
+- Geometry: `ImageCropper`, `ImageScaler`, `ImageFlipper`, `ImageRotator`
+- Look: `ImageColorTransformer`, `ImageExposureAdjuster`, `ImageBlur`,
+  `RandomImageNoiseGenerator` (augmentation)
+- Classification: `ImageFeaturePrint` plus a logistic or fully connected
+  classifier; multi-label via `FullyConnectedNetworkMultiLabelClassifier`
+- Adaptors: a Core ML model used as a classifier or regressor
+
+Fit and run on the Mac; export or wrap as Core ML for `coreml.custom` or
+Vision. No cloud training for a personal look model. These are for **model
+pipelines**, not a replacement for a measured one-probe edit in Pixelmator Pro.
+
+If the operator wants a personal "looks like my keepers" model, propose a
+Create ML Components pipeline trained on their labeled stills and deployed via
+Core ML. That is a project, not a silent download.
+
+## 32 GB Apple silicon budget
+
+On a 32 GB Apple silicon Mac, leave headroom for Final Cut Pro, Pixelmator Pro,
+phot-o-MATIC, Photos, and any running virtual machine.
+
+- Prefer Apple Vision models and compact Core ML classifiers over general
+  language models for "what is in this frame."
+- Keep one custom vision model in memory at a time; unload it before opening
+  Final Cut Pro or Generate Fill if memory is tight.
+- Do not stack 30B-class or multi-model pipelines, and do not assume 64 GB.
+- If MLX is the only option, pick a quantized size that leaves several GB
+  free, or refuse and say why.
+
+Compiled `.mlmodelc` models on the Neural Engine are the default deploy shape.
+Always print `modelDescription` input shapes; never guess. Inference is not
+the grade — measure, then edit, then re-measure.

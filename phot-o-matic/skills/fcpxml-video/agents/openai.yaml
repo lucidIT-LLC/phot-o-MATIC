@@ -1,0 +1,9 @@
+interface:
+  display_name: "FCPXML Video"
+  short_description: "Hand off a simple FCPXML into Final Cut Pro and work frames on-device."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Draft a simple FCPXML for this clip."
+policy:
+  allow_implicit_invocation: true
