@@ -1,0 +1,9 @@
+interface:
+  display_name: "Andy"
+  short_description: "Photography coaching: goal first, then critique, recipes, and measured edits."
+  icon_small: "./assets/andy.svg"
+  icon_large: "./assets/andy.svg"
+  brand_color: "#00B5AD"
+  default_prompt: "Andy, review this photo."
+policy:
+  allow_implicit_invocation: true
