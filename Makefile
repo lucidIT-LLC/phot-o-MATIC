@@ -279,10 +279,12 @@ plugin-check:
 			echo "plugin-check FAILED: $(PACK)/bin/walk-mcp carries com.apple.quarantine and macOS will refuse to run it" >&2; fail=1; \
 		fi; \
 	fi; \
-	: 'The three skills are payload, not decoration — they ship inside the pack.'; \
-	for s in media-triage coreml-vision creator-studio; do \
+	: 'The four skills are payload, not decoration — they ship inside the pack.'; \
+	: 'Andy + Walk reunite under phot-o-MATIC (2026-11-27): andy-photo-coach is required.'; \
+	for s in media-triage coreml-vision creator-studio andy-photo-coach; do \
 		[ -f "$(PACK)/skills/$$s/SKILL.md" ] || { echo "plugin-check FAILED: $(PACK)/skills/$$s/SKILL.md is missing" >&2; fail=1; }; \
 	done; \
+	[ -f "$(PACK)/agents/andy.md" ] || { echo "plugin-check FAILED: $(PACK)/agents/andy.md is missing — Andy distributes with this pack" >&2; fail=1; }; \
 	if [ "$$fail" -ne 0 ]; then echo "" >&2; echo "plugin payload is NOT shippable." >&2; exit 1; fi; \
 	: 'DECISION #106, 2026-06-05: a repository cannot be both the marketplace and'; \
 	: 'the plugin at its root, and a plugin source of "." is invalid. MEASURED'; \

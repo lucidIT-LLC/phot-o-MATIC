@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Andy + Walk reunite under phot-o-MATIC (2026-11-27)
+
+- `phot-o-matic/skills/andy-photo-coach/` moves into this pack from
+  `o-matic-studio` so Andy distributes with the Walk engine he depends on.
+- `phot-o-matic/agents/andy.md` and lean host adapters
+  (`adapters/cursor`, `codex`, `copilot`, `grok`) ship with the pack.
+- `reference/walk-engine.md` names `lucidIT-LLC/phot-o-MATIC` as the engine
+  source home and the phot-o-MATIC plugin as the MCP distribution (server name
+  `walk`, tools still `walk_*`). No engine behavior change; pin remains
+  `walk contract --expect 0.10.2`.
+- `make plugin-check` requires `andy-photo-coach` and `agents/andy.md`.
+- CI coach-pin check prefers the in-tree skill over a Studio cache.
+
 ## 0.10.2 — 2026-09-30 — one version again: the engine says what the plugin ships
 
 - `Sources/WalkKit/Version.swift` moves 0.10.0 -> 0.10.2 to match the plugin

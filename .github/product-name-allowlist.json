@@ -113,6 +113,10 @@
       "why": "criteria filename on disk."
     },
     {
+      "token": "walk-engine\\.md",
+      "why": "Andy coach skill reference filename for the measurement engine contract; pairs with walk_* wire tools. Not a product display name."
+    },
+    {
       "token": "walk-mcp",
       "why": "binary and SPM target. #542 HOLD."
     },

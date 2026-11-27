@@ -155,12 +155,11 @@ jobs:
       #
       # It used to read `--expect 0.2.0` and was named for a specific consumer:
       # "Pixel 2.5.0 §8.5 expects 0.2.0". Both halves have since gone.
-      # MEASURED off the live host surface 2026-09-13:
-      #   - the consumer is `andy-photo-coach` 2.6.0 in studio pack 1.10.1;
-      #     `pixel-photo-coach` is absent from the installed pack and from the
-      #     live skill listing (decision #538);
-      #   - its §8.5 now reads `walk contract --expect 0.5.7`, so the drift this
-      #     step was watching is FIXED.
+      # MEASURED off the live host surface 2026-09-13 (history):
+      #   - the consumer is `andy-photo-coach` (then studio pack 1.10.1;
+      #     from 2026-11-27 it ships in phot-o-matic/);
+      #     `pixel-photo-coach` is absent (decision #538);
+      #   - its Walk pin later moved with the engine; current pin is 0.10.2.
       #
       # A gate naming a consumer that no longer exists, watching a defect that is
       # already closed, is a check that can no longer fail. That is the one thing
@@ -198,10 +197,20 @@ jobs:
       # silently — absence is not agreement.
       - name: Contract — the installed coach skill's pin still agrees
         run: |
-          SKILL=$(ls -d "$HOME"/.claude/plugins/cache/o-matic-studio/studio/*/skills/andy-photo-coach/SKILL.md 2>/dev/null | tail -1 || true)
+          # Andy + Walk reunite under phot-o-MATIC: prefer the in-tree skill,
+          # then an installed phot-o-matic pack, then a legacy studio cache.
+          SKILL=""
+          if [ -f "phot-o-matic/skills/andy-photo-coach/SKILL.md" ]; then
+            SKILL="phot-o-matic/skills/andy-photo-coach/SKILL.md"
+          else
+            SKILL=$(ls -d "$HOME"/.claude/plugins/cache/phot-o-matic/*/skills/andy-photo-coach/SKILL.md 2>/dev/null | tail -1 || true)
+          fi
           if [ -z "$SKILL" ]; then
-            echo "not evaluated — the coach skill is not installed on this host"
-            echo "  (expected on a CI runner; this check is meaningful on a developer machine)"
+            SKILL=$(ls -d "$HOME"/.claude/plugins/cache/o-matic-studio/studio/*/skills/andy-photo-coach/SKILL.md 2>/dev/null | tail -1 || true)
+          fi
+          if [ -z "$SKILL" ]; then
+            echo "not evaluated — the coach skill is not present in-tree or installed on this host"
+            echo "  (expected in phot-o-matic/skills/andy-photo-coach after the reunite)"
             exit 0
           fi
           # The pin may live in the skill's reference files (Studio 1.10.8 moved
